@@ -444,7 +444,7 @@ export default function Report() {
         doc.setTextColor(...MUTED)
         doc.setFontSize(7)
         doc.setFont('helvetica', 'normal')
-        doc.text(`Roselle Creative Solutions  |  Sol Jurkanski 732-496-6029  |  Akiva Jurkanski 732-606-3529  |  Page ${i} of ${pageCount}`,
+        doc.text(`Roselle Creative Solutions  |  Page ${i} of ${pageCount}`,
           W / 2, 276, { align: 'center' })
       }
  
