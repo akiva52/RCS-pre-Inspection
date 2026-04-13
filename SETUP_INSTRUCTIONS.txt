@@ -1,0 +1,74 @@
+# RCS Pre-Inspection Program — Setup Instructions
+# Follow these steps exactly and you'll be live in about 30-45 minutes.
+
+═══════════════════════════════════════════════════════
+STEP 1 — SET UP YOUR DATABASE IN SUPABASE
+═══════════════════════════════════════════════════════
+
+1. Go to https://supabase.com and log into your account
+2. Open your "RCS Pre-Inspection" project
+3. In the left sidebar, click "SQL Editor"
+4. Click "New Query"
+5. Open the file called SETUP_DATABASE.sql (included in this folder)
+6. Copy the ENTIRE contents of that file
+7. Paste it into the SQL Editor
+8. Click the green "Run" button
+9. You should see "Success" — your database is ready
+
+═══════════════════════════════════════════════════════
+STEP 2 — UPLOAD YOUR APP TO GITHUB
+═══════════════════════════════════════════════════════
+
+1. Go to https://github.com and create a free account if you don't have one
+2. Click the "+" button in the top right → "New repository"
+3. Name it: rcs-pre-inspection
+4. Keep it Private
+5. Click "Create repository"
+6. On the next screen, click "uploading an existing file"
+7. Drag and drop ALL the files from this folder into the upload area
+   (Make sure to upload the entire folder structure)
+8. Click "Commit changes"
+
+═══════════════════════════════════════════════════════
+STEP 3 — DEPLOY ON VERCEL
+═══════════════════════════════════════════════════════
+
+1. Go to https://vercel.com and log into your account
+2. Click "Add New Project"
+3. Click "Import Git Repository"
+4. Connect your GitHub account if asked
+5. Find "rcs-pre-inspection" and click "Import"
+6. BEFORE clicking Deploy — click "Environment Variables"
+7. Add these two variables:
+   
+   Name:  NEXT_PUBLIC_SUPABASE_URL
+   Value: https://uneddweeletfgwzmfole.supabase.co
+
+   Name:  NEXT_PUBLIC_SUPABASE_ANON_KEY
+   Value: sb_publishable_ns9hy0m62Fam5_qKkaRoEA_5w2OwfV_
+
+8. Click "Deploy"
+9. Wait about 2-3 minutes for it to build
+10. Vercel will give you a URL like: https://rcs-pre-inspection.vercel.app
+
+═══════════════════════════════════════════════════════
+STEP 4 — TEST IT
+═══════════════════════════════════════════════════════
+
+1. Open your Vercel URL on your phone
+2. Tap "New Inspection" and set up a test facility
+3. Add a few test issues
+4. Open the same URL on your desktop — you should see everything synced
+5. Try generating a report
+
+═══════════════════════════════════════════════════════
+YOU'RE LIVE!
+═══════════════════════════════════════════════════════
+
+Bookmark the URL on your phone and desktop.
+Add it to your phone's home screen for quick access:
+  - iPhone: Safari → Share → "Add to Home Screen"
+  - Android: Chrome → Menu → "Add to Home Screen"
+
+If anything doesn't work, come back to Claude and paste 
+the error message — it will be fixed quickly.
