@@ -86,9 +86,7 @@ export default function Report() {
         const infoRows = [
           ['FACILITY', inspection.facility_name],
           ['ADDRESS', inspection.address || '—'],
-          ['INSPECTION DATE', inspection.inspection_date || '—'],
-          ['REPORT DATE', reportDate],
-          ['DEAL TYPE', 'HUD 232 / 223(f)'],
+          ['PRE-INSPECTION DATE', inspection.inspection_date || '—'],
         ]
         infoRows.forEach(([label, value], i) => {
           const rowH = 7
@@ -448,7 +446,7 @@ export default function Report() {
           W / 2, 276, { align: 'center' })
       }
  
-      doc.save(`RCS_${inspection.facility_name.replace(/\s+/g, '_')}_${reportDate}.pdf`)
+      doc.save(`RCS_${inspection.facility_name.replace(/\s+/g, '_')}_${inspection.inspection_date}.pdf`)
       await supabase.from('inspections').update({ status: 'complete' }).eq('id', id)
     } catch (err) {
       console.error(err)
@@ -486,10 +484,7 @@ export default function Report() {
             ))}
           </div>
  
-          <div className="form-group">
-            <label className="form-label">Report Date</label>
-            <input className="form-input" type="date" value={reportDate} onChange={e => setReportDate(e.target.value)} />
-          </div>
+ 
  
           <div style={{marginBottom:'16px'}}>
             <div className="section-label" style={{marginBottom:'8px'}}>Report includes:</div>
