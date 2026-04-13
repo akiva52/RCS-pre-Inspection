@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import { supabase } from '../../../lib/supabase'
@@ -92,7 +93,7 @@ export default function Report() {
         ]
         infoRows.forEach(([label, value], i) => {
           const rowH = 7
-          doc.setFillColor(i % 2 === 0 ? ...WARM_GRAY : ...LIGHT_GRAY)
+          const rc = i % 2 === 0 ? WARM_GRAY : LIGHT_GRAY; doc.setFillColor(...rc)
           doc.rect(margin, y, contentW, rowH, 'F')
           doc.setDrawColor(...BORDER)
           doc.rect(margin, y, contentW, rowH, 'S')
