@@ -325,7 +325,7 @@ export default function Report() {
           toTitleCase(issue),
           data.category,
           String(data.count),
-          [...new Set(data.locations)].slice(0, 4).join(', ') || '—'
+          [...new Set(data.locations)].join(', ') || '—'
         ])
  
       doc.autoTable({
