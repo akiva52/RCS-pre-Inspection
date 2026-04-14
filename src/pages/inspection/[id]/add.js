@@ -24,6 +24,7 @@ export default function AddIssue() {
   const [showSaveCustomSpace, setShowSaveCustomSpace] = useState(false)
   const [customSpaceInput, setCustomSpaceInput] = useState('')
   const [showCustomSpaceInput, setShowCustomSpaceInput] = useState(false)
+  const [confirmedCustomSpace, setConfirmedCustomSpace] = useState('')
  
   useEffect(() => {
     if (id) {
@@ -83,10 +84,13 @@ export default function AddIssue() {
   }
  
   async function saveCustomSpace(permanently) {
-    if (permanently && customSpaceInput.trim()) {
-      await supabase.from('custom_items').insert({ item_type: 'space_type', value: customSpaceInput.trim() })
+    const val = customSpaceInput.trim()
+    if (permanently && val) {
+      await supabase.from('custom_items').insert({ item_type: 'space_type', value: val })
+      setCustomSpaces(prev => [...prev, val])
     }
-    setSpaceType(customSpaceInput.trim())
+    setConfirmedCustomSpace(val)
+    setSpaceType(val)
     setShowSaveCustomSpace(false)
     setShowCustomSpaceInput(false)
   }
@@ -122,7 +126,7 @@ export default function AddIssue() {
       }
     }
  
-    const finalSpaceType = spaceType === '__custom__' ? customSpaceInput.trim() : spaceType
+    const finalSpaceType = confirmedCustomSpace || (spaceType === '__custom__' ? customSpaceInput.trim() : spaceType)
  
     const { error } = await supabase.from('issues').insert({
       inspection_id: id,
@@ -178,11 +182,11 @@ export default function AddIssue() {
                     placeholder="Type custom space type..." autoFocus />
                   <div style={{display:'flex', gap:'8px', marginTop:'8px'}}>
                     <button className="save-btn" style={{flex:1, padding:'10px', fontSize:'12px'}}
-                      onClick={() => { setSpaceType('__custom__'); setShowSaveCustomSpace(true) }}>
+                      onClick={() => { setSpaceType('__custom__'); setConfirmedCustomSpace(customSpaceInput.trim()); setShowSaveCustomSpace(true) }}>
                       Use This Space Type
                     </button>
                     <button className="modal-btn cancel" style={{flex:1, padding:'10px', fontSize:'12px'}}
-                      onClick={() => { setShowCustomSpaceInput(false); setCustomSpaceInput('') }}>
+                      onClick={() => { setShowCustomSpaceInput(false); setCustomSpaceInput(''); setConfirmedCustomSpace('') }}>
                       Cancel
                     </button>
                   </div>
