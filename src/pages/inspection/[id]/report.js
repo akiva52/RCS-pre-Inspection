@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import { supabase } from '../../../lib/supabase'
@@ -53,6 +54,7 @@ export default function Report() {
       const PURPLE = [106, 74, 124]
       const WHITE = [255, 255, 255]
       const TEXT = [51, 51, 51]
+      const DARK = [42, 42, 42]
       const MUTED = [153, 153, 153]
  
       let y = margin
@@ -207,14 +209,19 @@ export default function Report() {
         const catIssues = issues.filter(i => i.category === cat)
         if (catIssues.length === 0) return
  
-        checkSpace(16)
+        // Category header
+        checkSpace(20)
         doc.setFillColor(...(catColors[cat] || CHARCOAL))
-        doc.rect(margin, y, contentW, 9, 'F')
+        doc.rect(margin, y, contentW, 11, 'F')
         doc.setTextColor(...WHITE)
-        doc.setFontSize(9)
+        doc.setFontSize(10)
         doc.setFont('helvetica', 'bold')
-        doc.text(cat.toUpperCase(), margin + 4, y + 6)
-        y += 10
+        doc.text(cat.toUpperCase(), margin + 6, y + 7.5)
+        doc.setFontSize(8)
+        doc.setFont('helvetica', 'normal')
+        doc.setTextColor(220, 220, 220)
+        doc.text(`${catIssues.length} issue${catIssues.length !== 1 ? 's' : ''}`, margin + contentW - 6, y + 7.5, { align: 'right' })
+        y += 14
  
         // Group by wing/location
         const grouped = {}
@@ -225,38 +232,71 @@ export default function Report() {
         })
  
         Object.entries(grouped).forEach(([loc, locIssues]) => {
-          const summary = locIssues.map(i => `${i.issue_type}${i.location ? ' at ' + i.location : ''}${i.notes ? ': ' + i.notes : ''}`).join('. ')
-          checkSpace(12)
+          checkSpace(30)
+ 
+          // Location subheader
           doc.setFillColor(...WARM_GRAY)
-          doc.rect(margin, y, 35, 10, 'F')
-          doc.setFillColor(...LIGHT_GRAY)
-          doc.rect(margin + 35, y, contentW - 35, 10, 'F')
+          doc.rect(margin, y, contentW, 8, 'F')
           doc.setDrawColor(...BORDER)
-          doc.rect(margin, y, contentW, 10, 'S')
+          doc.rect(margin, y, contentW, 8, 'S')
           doc.setTextColor(...MID_GRAY)
-          doc.setFontSize(7.5)
+          doc.setFontSize(8)
           doc.setFont('helvetica', 'bold')
-          doc.text(loc, margin + 3, y + 6.5)
-          doc.setFont('helvetica', 'normal')
-          doc.setTextColor(...TEXT)
-          const lines = doc.splitTextToSize(summary, contentW - 40)
-          const rowH = Math.max(10, lines.length * 4 + 4)
-          // Redraw with correct height
-          doc.setFillColor(...WARM_GRAY)
-          doc.rect(margin, y, 35, rowH, 'F')
-          doc.setFillColor(...LIGHT_GRAY)
-          doc.rect(margin + 35, y, contentW - 35, rowH, 'F')
-          doc.rect(margin, y, contentW, rowH, 'S')
-          doc.setTextColor(...MID_GRAY)
-          doc.setFont('helvetica', 'bold')
-          doc.text(loc, margin + 3, y + 5)
-          doc.setFont('helvetica', 'normal')
-          doc.setTextColor(...TEXT)
-          doc.setFontSize(7)
-          doc.text(lines, margin + 37, y + 5)
-          y += rowH
+          doc.text(loc, margin + 5, y + 5.5)
+          y += 10
+ 
+          // Each issue as its own clean row
+          locIssues.forEach((issue, idx) => {
+            const issueLine = issue.issue_type
+            const notesLine = issue.notes ? issue.notes : ''
+            const locationLine = issue.space_type || issue.location
+              ? [issue.space_type, issue.location].filter(Boolean).join(' — ')
+              : ''
+ 
+            const noteLines = notesLine ? doc.splitTextToSize(notesLine, contentW - 20) : []
+            const rowH = 8 + (locationLine ? 4 : 0) + (noteLines.length * 4) + 4
+            checkSpace(rowH + 2)
+ 
+            const bg = idx % 2 === 0 ? LIGHT_GRAY : WHITE
+            doc.setFillColor(...bg)
+            doc.rect(margin, y, contentW, rowH, 'F')
+            doc.setDrawColor(...BORDER)
+            doc.rect(margin, y, contentW, rowH, 'S')
+ 
+            // Bullet
+            doc.setFillColor(...(catColors[cat] || CHARCOAL))
+            doc.circle(margin + 5, y + 5, 1.5, 'F')
+ 
+            // Issue name
+            doc.setTextColor(...DARK)
+            doc.setFontSize(8.5)
+            doc.setFont('helvetica', 'bold')
+            doc.text(issueLine, margin + 10, y + 5.5)
+ 
+            let innerY = y + 10
+ 
+            // Location
+            if (locationLine) {
+              doc.setTextColor(...MUTED)
+              doc.setFontSize(7.5)
+              doc.setFont('helvetica', 'normal')
+              doc.text(locationLine, margin + 10, innerY)
+              innerY += 4
+            }
+ 
+            // Notes
+            if (noteLines.length > 0) {
+              doc.setTextColor(80, 80, 80)
+              doc.setFontSize(7.5)
+              doc.setFont('helvetica', 'italic')
+              doc.text(noteLines, margin + 10, innerY)
+            }
+ 
+            y += rowH + 1
+          })
+          y += 4
         })
-        y += 4
+        y += 6
       })
  
       // ── SECTION 2: DETAILED ISSUE SUMMARY ──
