@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import { supabase } from '../../../lib/supabase'
@@ -37,6 +36,12 @@ export default function Report() {
     try {
       const jsPDF = (await import('jspdf')).default
       await import('jspdf-autotable')
+ 
+      // Title case helper - capitalizes first letter of every word
+      const toTitleCase = (str) => {
+        if (!str) return ''
+        return str.replace(/\w\S*/g, txt => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase())
+      }
  
       const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' })
       const W = 215.9, margin = 15
@@ -271,7 +276,7 @@ export default function Report() {
             doc.setTextColor(...DARK)
             doc.setFontSize(8.5)
             doc.setFont('helvetica', 'bold')
-            doc.text(issueLine, margin + 10, y + 5.5)
+            doc.text(toTitleCase(issueLine), margin + 10, y + 5.5)
  
             let innerY = y + 10
  
@@ -317,7 +322,7 @@ export default function Report() {
         .sort((a, b) => b[1].count - a[1].count)
         .map(([issue, data], i) => [
           String(i + 1),
-          issue,
+          toTitleCase(issue),
           data.category,
           String(data.count),
           [...new Set(data.locations)].slice(0, 4).join(', ') || '—'
@@ -434,7 +439,7 @@ export default function Report() {
           doc.setTextColor(...WHITE)
           doc.setFontSize(9)
           doc.setFont('helvetica', 'bold')
-          doc.text(`  ${issueName}`, margin + 4, y + 6)
+          doc.text(`  ${toTitleCase(issueName)}`, margin + 4, y + 6)
           doc.setFontSize(8)
           doc.setFont('helvetica', 'normal')
           doc.setTextColor(200, 200, 200)
@@ -562,3 +567,4 @@ export default function Report() {
     </>
   )
 }
+
