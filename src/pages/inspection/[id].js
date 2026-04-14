@@ -2,10 +2,10 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import { supabase } from '../../lib/supabase'
 import Head from 'next/head'
-
+ 
 const CATEGORIES = ['Interior', 'Exterior', 'Missing Paperwork', 'Possible Critical Issues']
 const CAT_SHORT = ['Interior', 'Exterior', 'Paperwork', 'Critical']
-
+ 
 export default function Inspection() {
   const router = useRouter()
   const { id } = router.query
@@ -17,11 +17,11 @@ export default function Inspection() {
   const [loading, setLoading] = useState(true)
   const [menuIssue, setMenuIssue] = useState(null)
   const [showLocationModal, setShowLocationModal] = useState(false)
-
+ 
   useEffect(() => {
     if (id) loadData()
   }, [id])
-
+ 
   async function loadData() {
     setLoading(true)
     const { data: insp } = await supabase.from('inspections').select('*').eq('id', id).single()
@@ -36,28 +36,28 @@ export default function Inspection() {
     setIssues(iss || [])
     setLoading(false)
   }
-
+ 
   async function deleteIssue(issueId) {
     await supabase.from('issues').delete().eq('id', issueId)
     setIssues(issues.filter(i => i.id !== issueId))
     await updateIssueCount(issues.length - 1)
     setMenuIssue(null)
   }
-
+ 
   async function updateIssueCount(count) {
     await supabase.from('inspections').update({ issue_count: count }).eq('id', id)
   }
-
+ 
   const filteredIssues = issues.filter(i => i.category === activeCategory)
-
+ 
   const currentWingObj = inspection?.wings?.find(w => w.name === activeWing)
   const floorOptions = currentWingObj
     ? Array.from({ length: currentWingObj.floors }, (_, i) => `Floor ${i + 1}`)
     : ['Floor 1']
-
+ 
   if (loading) return <div className="app-container"><div className="loading">Loading inspection...</div></div>
   if (!inspection) return <div className="app-container"><div className="loading">Inspection not found.</div></div>
-
+ 
   return (
     <>
       <Head><title>{inspection.facility_name} — RCS</title></Head>
@@ -69,7 +69,7 @@ export default function Inspection() {
           </div>
           <div className="header-sub">{inspection.facility_name} — {inspection.inspection_date}</div>
         </div>
-
+ 
         {/* FACILITY / LOCATION STRIP */}
         <div className="facility-strip">
           <span className="facility-name">
@@ -84,7 +84,7 @@ export default function Inspection() {
             <button className="facility-change" onClick={() => router.push('/')}>← home</button>
           </div>
         </div>
-
+ 
         {/* LOCK BAR — only for interior */}
         {activeCategory === 'Interior' && inspection.wings?.length > 0 && (
           <div className="lock-bar">
@@ -101,7 +101,7 @@ export default function Inspection() {
             )}
           </div>
         )}
-
+ 
         {/* CATEGORY TABS */}
         <div className="cat-tabs">
           {CATEGORIES.map((cat, i) => (
@@ -111,7 +111,7 @@ export default function Inspection() {
             </button>
           ))}
         </div>
-
+ 
         {/* ISSUES LIST */}
         <div className="issues-body">
           {filteredIssues.length === 0 ? (
@@ -140,7 +140,7 @@ export default function Inspection() {
             ))
           )}
         </div>
-
+ 
         {/* ADD BUTTON */}
         <div className="add-btn-wrap">
           <div style={{display:'flex', gap:'8px'}}>
@@ -155,7 +155,7 @@ export default function Inspection() {
             </button>
           </div>
         </div>
-
+ 
         {/* LOCATION MODAL */}
         {showLocationModal && (
           <div className="modal-overlay" onClick={() => setShowLocationModal(false)}>
@@ -177,7 +177,7 @@ export default function Inspection() {
             </div>
           </div>
         )}
-
+ 
         {/* ISSUE MENU MODAL */}
         {menuIssue && (
           <div className="modal-overlay" onClick={() => setMenuIssue(null)}>
