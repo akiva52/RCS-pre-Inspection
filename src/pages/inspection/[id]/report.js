@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import { supabase } from '../../../lib/supabase'
 import Head from 'next/head'
- 
+
 export default function Report() {
   const router = useRouter()
   const { id } = router.query
@@ -14,11 +14,11 @@ export default function Report() {
   const [includedSections, setIncludedSections] = useState({
     section1: true, section2: true, section3: true, section4: true
   })
- 
+
   useEffect(() => {
     if (id) loadData()
   }, [id])
- 
+
   async function loadData() {
     const { data: insp } = await supabase.from('inspections').select('*').eq('id', id).single()
     const { data: iss } = await supabase.from('issues').select('*').eq('inspection_id', id).order('created_at', { ascending: true })
@@ -26,31 +26,31 @@ export default function Report() {
     setIssues(iss || [])
     setLoading(false)
   }
- 
+
   const categoryCounts = {
     'Exterior': issues.filter(i => i.category === 'Exterior').length,
     'Interior': issues.filter(i => i.category === 'Interior').length,
     'Missing Paperwork': issues.filter(i => i.category === 'Missing Paperwork').length,
     'Possible Critical Issues': issues.filter(i => i.category === 'Possible Critical Issues').length,
   }
- 
+
   async function generateReport() {
     const { section1, section2, section3, section4 } = includedSections
     setGenerating(true)
     try {
       const jsPDF = (await import('jspdf')).default
       await import('jspdf-autotable')
- 
+
       // Title case helper - capitalizes first letter of every word
       const toTitleCase = (str) => {
         if (!str) return ''
         return str.replace(/\w\S*/g, txt => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase())
       }
- 
+
       const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' })
       const W = 215.9, margin = 15
       const contentW = W - margin * 2
- 
+
       // Colors
       const CHARCOAL = [61, 60, 58]
       const MID_GRAY = [74, 72, 69]
@@ -65,18 +65,18 @@ export default function Report() {
       const TEXT = [51, 51, 51]
       const DARK = [42, 42, 42]
       const MUTED = [153, 153, 153]
- 
+
       let y = margin
- 
+
       function addPage() {
         doc.addPage()
         y = margin
       }
- 
+
       function checkSpace(needed) {
         if (y + needed > 265) addPage()
       }
- 
+
       function drawHeader() {
         // RCS header bar
         doc.setFillColor(...CHARCOAL)
@@ -92,7 +92,7 @@ export default function Report() {
         doc.setTextColor(170, 170, 170)
         doc.text('roselle creative solutions', margin + 22, y + 14)
         y += 22
- 
+
         // Facility info
         const infoRows = [
           ['FACILITY', inspection.facility_name],
@@ -115,7 +115,7 @@ export default function Report() {
           y += rowH
         })
         y += 4
- 
+
         // Contacts
         doc.setFillColor(...WARM_GRAY)
         doc.rect(margin, y, contentW / 2, 12, 'F')
@@ -139,7 +139,7 @@ export default function Report() {
         doc.setFontSize(7.5)
         doc.text('732-606-3529  |  Akiva@rosellecs.com', margin + contentW / 2 + 4, y + 8.5)
         y += 16
- 
+
         // Issue count boxes
         const boxes = [
           { label: 'TOTAL', count: issues.length, color: CHARCOAL },
@@ -161,7 +161,7 @@ export default function Report() {
           doc.text(box.label, margin + i * boxW + boxW / 2, y + 13, { align: 'center' })
         })
         y += 20
- 
+
         // Disclaimer
         doc.setTextColor(...MUTED)
         doc.setFontSize(7)
@@ -173,7 +173,7 @@ export default function Report() {
         doc.line(margin, y, margin + contentW, y)
         y += 6
       }
- 
+
       function sectionBanner(title, subtitle, color) {
         checkSpace(14)
         doc.setFillColor(...color)
@@ -188,10 +188,10 @@ export default function Report() {
         doc.text(subtitle, margin + contentW - 4, y + 7.5, { align: 'right' })
         y += 14
       }
- 
+
       // ── COVER PAGE ──
       drawHeader()
- 
+
       // Table of contents - only show included sections with correct numbers
       const toc = []
       if (section1) toc.push(`Section ${sectionNums.s1}  —  Executive Summary`)
@@ -205,29 +205,29 @@ export default function Report() {
         doc.text(`•  ${item}`, margin + 4, y)
         y += 5
       })
- 
+
       // ── SECTION 1: EXECUTIVE SUMMARY ──
       const catColors = { 'Exterior': GREEN, 'Interior': SLATE, 'Possible Critical Issues': RUST, 'Missing Paperwork': PURPLE }
       if (section1) {
         addPage()
         sectionBanner(`SECTION ${sectionNums.s1} — EXECUTIVE SUMMARY`, 'Plain language overview by location', CHARCOAL)
- 
+
         const colW = (contentW - 6) / 2
         const col1X = margin
         const col2X = margin + colW + 6
         let col1Y = y
         let col2Y = y
         let useCol2 = false
- 
+
         const cats1 = ['Exterior', 'Interior', 'Missing Paperwork', 'Possible Critical Issues']
- 
+
         cats1.forEach(cat => {
           const catIssues = issues.filter(i => i.category === cat)
           if (catIssues.length === 0) return
- 
+
           let activeX = useCol2 ? col2X : col1X
           let activeY = useCol2 ? col2Y : col1Y
- 
+
           // If current column is getting full, switch
           if (activeY > 240) {
             if (!useCol2) {
@@ -241,7 +241,7 @@ export default function Report() {
               activeX = col1X; activeY = y
             }
           }
- 
+
           // Category header
           doc.setFillColor(...(catColors[cat] || CHARCOAL))
           doc.rect(activeX, activeY, colW, 9, 'F')
@@ -254,7 +254,7 @@ export default function Report() {
           doc.setTextColor(220, 220, 220)
           doc.text(`${catIssues.length} issues`, activeX + colW - 3, activeY + 6.2, { align: 'right' })
           activeY += 10
- 
+
           // Group by wing
           const grouped1 = {}
           catIssues.forEach(issue => {
@@ -262,7 +262,7 @@ export default function Report() {
             if (!grouped1[key]) grouped1[key] = []
             grouped1[key].push(issue)
           })
- 
+
           Object.entries(grouped1).forEach(([loc, locIssues]) => {
             // Location subheader
             doc.setFillColor(...WARM_GRAY)
@@ -275,7 +275,7 @@ export default function Report() {
             const locText = doc.splitTextToSize(loc, colW - 6)
             doc.text(locText[0], activeX + 3, activeY + 4.8)
             activeY += 8
- 
+
             locIssues.forEach((issue, idx) => {
               const issueLine = toTitleCase(issue.issue_type)
               const locationLine = [issue.space_type, issue.location].filter(Boolean).join(' — ')
@@ -284,7 +284,7 @@ export default function Report() {
               const locLines = locationLine ? doc.splitTextToSize(locationLine, colW - 12) : []
               const noteLines2 = noteText ? doc.splitTextToSize(noteText, colW - 12) : []
               const rowH = (issueLines.length * 4) + (locLines.length * 3.5) + (noteLines2.length * 3.5) + 5
- 
+
               // Switch column or add page if needed
               if (activeY + rowH > 265) {
                 if (!useCol2) {
@@ -300,7 +300,7 @@ export default function Report() {
                   activeY = y
                 }
               }
- 
+
               const bg = idx % 2 === 0 ? LIGHT_GRAY : WHITE
               doc.setFillColor(...bg)
               doc.rect(activeX, activeY, colW, rowH, 'F')
@@ -330,19 +330,19 @@ export default function Report() {
             })
             activeY += 3
           })
- 
+
           // Save column position
           if (useCol2) { col2Y = activeY + 4 } else { col1Y = activeY + 4 }
         })
- 
+
         y = Math.max(col1Y, col2Y) + 4
       } // end section1
- 
+
       // ── SECTION 2: DETAILED ISSUE SUMMARY ──
       if (section2) {
       addPage()
       sectionBanner(`SECTION ${sectionNums.s2} — DETAILED ISSUE SUMMARY`, 'Each issue type with total count', CHARCOAL)
- 
+
       // Count issues by type
       const issueCounts = {}
       issues.forEach(issue => {
@@ -352,7 +352,7 @@ export default function Report() {
         issueCounts[issue.issue_type].count++
         if (issue.location) issueCounts[issue.issue_type].locations.push(issue.location)
       })
- 
+
       const summaryRows = Object.entries(issueCounts)
         .sort((a, b) => b[1].count - a[1].count)
         .map(([issue, data], i) => [
@@ -362,7 +362,7 @@ export default function Report() {
           String(data.count),
           [...new Set(data.locations)].join(', ') || '—'
         ])
- 
+
       doc.autoTable({
         startY: y,
         head: [['#', 'Issue', 'Category', 'Count', 'Locations']],
@@ -380,14 +380,14 @@ export default function Report() {
         }
       })
       y = doc.lastAutoTable.finalY + 8
- 
+
       } // end section2
- 
+
       // ── SECTION 3: BY LOCATION ──
       if (section3) {
       addPage()
       sectionBanner(`SECTION ${sectionNums.s3} — VIEW 1: BY LOCATION`, 'Walk room by room — check off as completed', CHARCOAL)
- 
+
       const locationGroups = {}
       issues.forEach(issue => {
         const cat = issue.category
@@ -397,12 +397,12 @@ export default function Report() {
         if (!locationGroups[key]) locationGroups[key] = []
         locationGroups[key].push(issue)
       })
- 
+
       const catOrder = ['Exterior', 'Interior', 'Missing Paperwork', 'Possible Critical Issues']
       catOrder.forEach(cat => {
         const catGroups = Object.entries(locationGroups).filter(([k]) => k.startsWith(cat + '||'))
         if (catGroups.length === 0) return
- 
+
         // Add disclaimer before Possible Critical Issues
         if (cat === 'Possible Critical Issues') {
           checkSpace(16)
@@ -418,7 +418,7 @@ export default function Report() {
             margin + contentW / 2, y + 7.5, { align: 'center' })
           y += 16
         }
- 
+
         checkSpace(16)
         doc.setFillColor(...(catColors[cat] || CHARCOAL))
         doc.rect(margin, y, contentW, 9, 'F')
@@ -427,7 +427,7 @@ export default function Report() {
         doc.setFont('helvetica', 'bold')
         doc.text(cat.toUpperCase(), margin + 4, y + 6)
         y += 10
- 
+
         catGroups.forEach(([key, groupIssues]) => {
           const [, wing, floor] = key.split('||')
           if (wing !== 'General') {
@@ -440,20 +440,20 @@ export default function Report() {
             doc.text(`  ${wing}${floor ? ' — ' + floor : ''}`, margin + 4, y + 5.5)
             y += 8
           }
- 
+
           const isSimpleCat = cat === 'Possible Critical Issues' || cat === 'Missing Paperwork'
           const rows = isSimpleCat
             ? groupIssues.map((issue, i) => ['', String(i + 1), toTitleCase(issue.issue_type), issue.notes || '—'])
             : groupIssues.map((issue, i) => ['', String(i + 1), issue.space_type || '—', issue.location || '—', toTitleCase(issue.issue_type), issue.notes || '—'])
- 
+
           const head = isSimpleCat
             ? [['', '#', 'Issue', 'Notes']]
             : [['', '#', 'Space Type', 'Location', 'Issue', 'Notes']]
- 
+
           const colStyles = isSimpleCat
             ? { 0: { cellWidth: 6 }, 1: { cellWidth: 6 }, 2: { cellWidth: 100 }, 3: { cellWidth: 74 } }
             : { 0: { cellWidth: 6 }, 1: { cellWidth: 6 }, 2: { cellWidth: 32 }, 3: { cellWidth: 28 }, 4: { cellWidth: 42 }, 5: { cellWidth: 72 } }
- 
+
           doc.autoTable({
             startY: y,
             head: head,
@@ -474,26 +474,26 @@ export default function Report() {
             }
           })
           y = doc.lastAutoTable.finalY + 4
- 
+
           // Add disclaimer BEFORE Possible Critical Issues section header
           
         })
         y += 4
       })
- 
+
       } // end section3
- 
+
       // ── SECTION 4: BY ISSUE TYPE ──
       if (section4) {
       addPage()
       sectionBanner(`SECTION ${sectionNums.s4} — VIEW 2: BY ISSUE TYPE`, 'Same repairs grouped — assign one crew per issue', CHARCOAL)
- 
+
       const byIssueType = {}
       issues.forEach(issue => {
         if (!byIssueType[issue.issue_type]) byIssueType[issue.issue_type] = []
         byIssueType[issue.issue_type].push(issue)
       })
- 
+
       let s4CriticalDisclaimerShown = false
       Object.entries(byIssueType)
         .sort((a, b) => b[1].length - a[1].length)
@@ -526,7 +526,7 @@ export default function Report() {
           doc.setTextColor(200, 200, 200)
           doc.text(`${issueList.length} location${issueList.length > 1 ? 's' : ''}`, margin + contentW - 4, y + 6, { align: 'right' })
           y += 9
- 
+
           const rows = issueList.map((issue, i) => [
             '',
             String(i + 1),
@@ -535,7 +535,7 @@ export default function Report() {
             issue.location || '—',
             issue.notes || '—'
           ])
- 
+
           doc.autoTable({
             startY: y,
             head: [['', '#', 'Category', 'Wing / Floor', 'Location', 'Notes']],
@@ -557,9 +557,9 @@ export default function Report() {
           })
           y = doc.lastAutoTable.finalY + 6
         })
- 
+
       } // end section4
- 
+
       // FOOTER on last page
       const pageCount = doc.getNumberOfPages()
       for (let i = 1; i <= pageCount; i++) {
@@ -573,7 +573,7 @@ export default function Report() {
         doc.text(`Roselle Creative Solutions  |  Page ${i} of ${pageCount}`,
           W / 2, 276, { align: 'center' })
       }
- 
+
       doc.save(`RCS_${inspection.facility_name.replace(/\s+/g, '_')}_${inspection.inspection_date}.pdf`)
       await supabase.from('inspections').update({ status: 'complete' }).eq('id', id)
     } catch (err) {
@@ -582,9 +582,9 @@ export default function Report() {
     }
     setGenerating(false)
   }
- 
+
   if (loading) return <div className="app-container"><div className="loading">Loading...</div></div>
- 
+
   return (
     <>
       <Head><title>Generate Report — RCS</title></Head>
@@ -593,7 +593,7 @@ export default function Report() {
           <button className="back-btn" onClick={() => router.back()}>←</button>
           <span className="back-title">Generate Report</span>
         </div>
- 
+
         <div className="report-screen">
           <div style={{marginBottom:'4px', fontSize:'18px', fontWeight:'600', color:'var(--dark)'}}>
             {inspection?.facility_name}
@@ -601,7 +601,7 @@ export default function Report() {
           <div style={{fontSize:'12px', color:'var(--muted)', marginBottom:'20px'}}>
             {issues.length} total issues logged
           </div>
- 
+
           {/* Category counts */}
           <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px', marginBottom:'20px'}}>
             {Object.entries(categoryCounts).map(([cat, count]) => (
@@ -611,9 +611,9 @@ export default function Report() {
               </div>
             ))}
           </div>
- 
- 
- 
+
+
+
           <div style={{marginBottom:'16px'}}>
             <div className="section-label" style={{marginBottom:'8px'}}>Select sections to include:</div>
             {[
@@ -641,17 +641,17 @@ export default function Report() {
               </div>
             ))}
           </div>
- 
+
           <button className="gen-btn" onClick={generateReport} disabled={generating || issues.length === 0}>
             {generating ? 'Generating PDF...' : '⬇ Generate & Download PDF'}
           </button>
- 
+
           {issues.length === 0 && (
             <div style={{textAlign:'center', fontSize:'12px', color:'var(--muted)', marginTop:'12px'}}>
               No issues logged yet. Go back and add issues before generating a report.
             </div>
           )}
- 
+
           <button className="modal-btn cancel" style={{marginTop:'12px'}} onClick={() => router.back()}>
             Back to Inspection
           </button>
