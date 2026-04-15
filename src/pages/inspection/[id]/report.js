@@ -206,8 +206,10 @@ export default function Report() {
         y += 5
       })
 
-      // ── SECTION 1: EXECUTIVE SUMMARY ──
+      // Always define catColors - used across multiple sections
       const catColors = { 'Exterior': GREEN, 'Interior': SLATE, 'Possible Critical Issues': RUST, 'Missing Paperwork': PURPLE }
+
+      // ── SECTION 1: EXECUTIVE SUMMARY ──
       if (section1) {
         addPage()
         sectionBanner(`SECTION ${sectionNums.s1} — EXECUTIVE SUMMARY`, 'Plain language overview by location', CHARCOAL)
