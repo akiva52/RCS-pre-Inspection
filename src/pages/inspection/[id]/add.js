@@ -81,25 +81,39 @@ export default function AddIssue() {
   }
 
   async function compressPhoto(file) {
-    return new Promise(resolve => {
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        const img = new Image()
-        img.onload = () => {
+    return new Promise((resolve, reject) => {
+      // Use blob URL instead of FileReader to avoid memory spike on mobile
+      const blobUrl = URL.createObjectURL(file)
+      const img = new Image()
+      img.onload = () => {
+        try {
+          URL.revokeObjectURL(blobUrl) // Free memory immediately
           const canvas = document.createElement('canvas')
-          const maxSize = 800
+          // Very aggressive compression for phone cameras (10-15MB files)
+          const maxSize = 400
           let w = img.width, h = img.height
           if (w > maxSize || h > maxSize) {
             if (w > h) { h = Math.round(h * maxSize / w); w = maxSize }
             else { w = Math.round(w * maxSize / h); h = maxSize }
           }
-          canvas.width = w; canvas.height = h
-          canvas.getContext('2d').drawImage(img, 0, 0, w, h)
-          resolve(canvas.toDataURL('image/jpeg', 0.7))
+          canvas.width = w
+          canvas.height = h
+          const ctx = canvas.getContext('2d')
+          ctx.drawImage(img, 0, 0, w, h)
+          const result = canvas.toDataURL('image/jpeg', 0.4)
+          // Free canvas memory
+          canvas.width = 0
+          canvas.height = 0
+          resolve(result)
+        } catch(e) {
+          reject(e)
         }
-        img.src = reader.result
       }
-      reader.readAsDataURL(file)
+      img.onerror = () => {
+        URL.revokeObjectURL(blobUrl)
+        reject(new Error('Image load failed'))
+      }
+      img.src = blobUrl
     })
   }
 
