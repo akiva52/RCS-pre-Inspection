@@ -66,6 +66,17 @@ export default function Report() {
       const DARK = [42, 42, 42]
       const MUTED = [153, 153, 153]
 
+      // Dynamic section numbering - always defined regardless of what's selected
+      const sectionNums = { s1: 0, s2: 0, s3: 0, s4: 0 }
+      let sNum = 1
+      if (section1) { sectionNums.s1 = sNum++ }
+      if (section2) { sectionNums.s2 = sNum++ }
+      if (section3) { sectionNums.s3 = sNum++ }
+      if (section4) { sectionNums.s4 = sNum++ }
+
+      // Always available - used across all sections
+      const catColors = { 'Exterior': GREEN, 'Interior': SLATE, 'Possible Critical Issues': RUST, 'Missing Paperwork': PURPLE }
+
       let y = margin
 
       function addPage() {
@@ -205,9 +216,6 @@ export default function Report() {
         doc.text(`•  ${item}`, margin + 4, y)
         y += 5
       })
-
-      // Always define catColors - used across multiple sections
-      const catColors = { 'Exterior': GREEN, 'Interior': SLATE, 'Possible Critical Issues': RUST, 'Missing Paperwork': PURPLE }
 
       // ── SECTION 1: EXECUTIVE SUMMARY ──
       if (section1) {
