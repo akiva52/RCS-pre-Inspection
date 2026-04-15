@@ -48,7 +48,19 @@ export default function Inspection() {
     await supabase.from('inspections').update({ issue_count: count }).eq('id', id)
   }
 
-  const filteredIssues = issues.filter(i => i.category === activeCategory)
+  const filteredIssues = issues.filter(i => {
+    if (showSearch && searchQuery.trim()) {
+      const q = searchQuery.toLowerCase()
+      return (
+        (i.issue_type || '').toLowerCase().includes(q) ||
+        (i.location || '').toLowerCase().includes(q) ||
+        (i.space_type || '').toLowerCase().includes(q) ||
+        (i.notes || '').toLowerCase().includes(q) ||
+        (i.wing || '').toLowerCase().includes(q)
+      )
+    }
+    return i.category === activeCategory
+  })
 
   const currentWingObj = inspection?.wings?.find(w => w.name === activeWing)
   const floorOptions = currentWingObj
@@ -134,6 +146,23 @@ export default function Inspection() {
           ))}
         </div>
 
+        {/* SEARCH BAR */}
+        {showSearch && (
+          <div style={{background:'var(--white)', padding:'8px 12px', borderBottom:'1px solid var(--border)', display:'flex', gap:'8px', alignItems:'center'}}>
+            <input
+              autoFocus
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search by room, issue, space type..."
+              style={{flex:1, background:'var(--light-gray)', border:'1px solid var(--border)', borderRadius:'8px', padding:'8px 12px', fontSize:'13px', fontFamily:'var(--font)', outline:'none'}}
+            />
+            <button onClick={() => { setShowSearch(false); setSearchQuery('') }}
+              style={{background:'none', border:'none', color:'var(--muted)', fontSize:'13px', cursor:'pointer', padding:'4px', fontFamily:'var(--font)'}}>
+              Cancel
+            </button>
+          </div>
+        )}
+
         {/* ISSUES LIST */}
         <div className="issues-body">
           {filteredIssues.length === 0 ? (
@@ -170,6 +199,11 @@ export default function Inspection() {
               onClick={() => router.push(`/inspection/${id}/add?category=${encodeURIComponent(activeCategory)}&wing=${encodeURIComponent(activeWing)}&floor=${encodeURIComponent(activeFloor)}`)}>
               <div className="add-btn-plus">+</div>
               Add {activeCategory === 'Missing Paperwork' ? 'Paperwork' : activeCategory === 'Possible Critical Issues' ? 'Critical Issue' : activeCategory} Issue
+            </button>
+            <button className="add-btn" style={{width:'52px', flexShrink:0, borderRadius:'50%', padding:'0', background:'var(--mid-gray)'}}
+              onClick={() => { setShowSearch(!showSearch); setSearchQuery('') }}
+              title="Search">
+              🔍
             </button>
             <button className="add-btn" style={{width:'52px', flexShrink:0, borderRadius:'50%', padding:'0'}}
               onClick={() => router.push(`/inspection/${id}/report`)}>
