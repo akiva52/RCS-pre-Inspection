@@ -210,129 +210,133 @@ export default function Report() {
       // ── SECTION 1: EXECUTIVE SUMMARY ──
       const catColors = { 'Exterior': GREEN, 'Interior': SLATE, 'Possible Critical Issues': RUST, 'Missing Paperwork': PURPLE }
       if (section1) {
-      addPage()
-      sectionBanner('SECTION 1 — EXECUTIVE SUMMARY', 'Plain language overview by location', CHARCOAL)
+        addPage()
+        sectionBanner('SECTION 1 — EXECUTIVE SUMMARY', 'Plain language overview by location', CHARCOAL)
  
-      // Two-column layout for Section 1
-      const colW = (contentW - 6) / 2
-      const col1X = margin
-      const col2X = margin + colW + 6
-      let col1Y = y
-      let col2Y = y
-      let useCol2 = false
+        const colW = (contentW - 6) / 2
+        const col1X = margin
+        const col2X = margin + colW + 6
+        let col1Y = y
+        let col2Y = y
+        let useCol2 = false
  
-      const cats = ['Exterior', 'Interior', 'Missing Paperwork', 'Possible Critical Issues']
+        const cats1 = ['Exterior', 'Interior', 'Missing Paperwork', 'Possible Critical Issues']
  
-      cats.forEach(cat => {
-        const catIssues = issues.filter(i => i.category === cat)
-        if (catIssues.length === 0) return
+        cats1.forEach(cat => {
+          const catIssues = issues.filter(i => i.category === cat)
+          if (catIssues.length === 0) return
  
-        // Category header spans full width
-        const cx = useCol2 ? col2X : col1X
-        const startY = useCol2 ? col2Y : col1Y
-        if (startY > 255) { addPage(); col1Y = y; col2Y = y; useCol2 = false }
+          let activeX = useCol2 ? col2X : col1X
+          let activeY = useCol2 ? col2Y : col1Y
  
-        const curX = useCol2 ? col2X : col1X
-        let curY = useCol2 ? col2Y : col1Y
+          // If current column is getting full, switch
+          if (activeY > 240) {
+            if (!useCol2) {
+              col1Y = activeY
+              useCol2 = true
+              activeX = col2X
+              activeY = col2Y
+            } else {
+              addPage()
+              col1Y = y; col2Y = y; useCol2 = false
+              activeX = col1X; activeY = y
+            }
+          }
  
-        doc.setFillColor(...(catColors[cat] || CHARCOAL))
-        doc.rect(curX, curY, colW, 9, 'F')
-        doc.setTextColor(...WHITE)
-        doc.setFontSize(8.5)
-        doc.setFont('helvetica', 'bold')
-        doc.text(cat.toUpperCase(), curX + 4, curY + 6.2)
-        doc.setFontSize(7)
-        doc.setFont('helvetica', 'normal')
-        doc.setTextColor(220,220,220)
-        doc.text(`${catIssues.length} issues`, curX + colW - 3, curY + 6.2, { align: 'right' })
-        curY += 10
- 
-        // Group by wing
-        const grouped = {}
-        catIssues.forEach(issue => {
-          const key = issue.wing ? `${issue.wing}${issue.floor ? ' — ' + issue.floor : ''}` : 'General'
-          if (!grouped[key]) grouped[key] = []
-          grouped[key].push(issue)
-        })
- 
-        Object.entries(grouped).forEach(([loc, locIssues]) => {
-          // Location subheader
-          doc.setFillColor(...WARM_GRAY)
-          doc.rect(curX, curY, colW, 7, 'F')
-          doc.setDrawColor(...BORDER)
-          doc.rect(curX, curY, colW, 7, 'S')
-          doc.setTextColor(...MID_GRAY)
-          doc.setFontSize(7)
+          // Category header
+          doc.setFillColor(...(catColors[cat] || CHARCOAL))
+          doc.rect(activeX, activeY, colW, 9, 'F')
+          doc.setTextColor(...WHITE)
+          doc.setFontSize(8.5)
           doc.setFont('helvetica', 'bold')
-          const locText = doc.splitTextToSize(loc, colW - 6)
-          doc.text(locText[0], curX + 3, curY + 4.8)
-          curY += 8
+          doc.text(cat.toUpperCase(), activeX + 4, activeY + 6.2)
+          doc.setFontSize(7)
+          doc.setFont('helvetica', 'normal')
+          doc.setTextColor(220, 220, 220)
+          doc.text(`${catIssues.length} issues`, activeX + colW - 3, activeY + 6.2, { align: 'right' })
+          activeY += 10
  
-          locIssues.forEach((issue, idx) => {
-            const issueLine = toTitleCase(issue.issue_type)
-            const locationLine = [issue.space_type, issue.location].filter(Boolean).join(' — ')
-            const noteText = issue.notes || ''
- 
-            const issueLines = doc.splitTextToSize(issueLine, colW - 12)
-            const locLines = locationLine ? doc.splitTextToSize(locationLine, colW - 12) : []
-            const noteLines2 = noteText ? doc.splitTextToSize(noteText, colW - 12) : []
-            const rowH = (issueLines.length * 4) + (locLines.length * 3.5) + (noteLines2.length * 3.5) + 5
- 
-            // Check if we need to switch column or new page
-            if (curY + rowH > 265) {
-              if (!useCol2) {
-                col1Y = curY
-                useCol2 = true
-                curX2 = col2X
-                curY = col2Y
-              } else {
-                addPage()
-                col1Y = y; col2Y = y; useCol2 = false
-                curY = y
-              }
-            }
- 
-            const activeCurX = useCol2 ? col2X : col1X
-            const bg = idx % 2 === 0 ? LIGHT_GRAY : WHITE
-            doc.setFillColor(...bg)
-            doc.rect(activeCurX, curY, colW, rowH, 'F')
-            doc.setDrawColor(...BORDER)
-            doc.rect(activeCurX, curY, colW, rowH, 'S')
- 
-            doc.setFillColor(...(catColors[cat] || CHARCOAL))
-            doc.circle(activeCurX + 4, curY + 4, 1.2, 'F')
- 
-            doc.setTextColor(...DARK)
-            doc.setFontSize(7.5)
-            doc.setFont('helvetica', 'bold')
-            doc.text(issueLines, activeCurX + 8, curY + 4.5)
-            let iy = curY + 4.5 + (issueLines.length * 4)
- 
-            if (locLines.length > 0) {
-              doc.setTextColor(...MUTED)
-              doc.setFontSize(6.5)
-              doc.setFont('helvetica', 'normal')
-              doc.text(locLines, activeCurX + 8, iy)
-              iy += locLines.length * 3.5
-            }
-            if (noteLines2.length > 0) {
-              doc.setTextColor(100,100,100)
-              doc.setFontSize(6.5)
-              doc.setFont('helvetica', 'italic')
-              doc.text(noteLines2, activeCurX + 8, iy)
-            }
-            curY += rowH + 1
+          // Group by wing
+          const grouped1 = {}
+          catIssues.forEach(issue => {
+            const key = issue.wing ? `${issue.wing}${issue.floor ? ' — ' + issue.floor : ''}` : 'General'
+            if (!grouped1[key]) grouped1[key] = []
+            grouped1[key].push(issue)
           })
-          curY += 3
+ 
+          Object.entries(grouped1).forEach(([loc, locIssues]) => {
+            // Location subheader
+            doc.setFillColor(...WARM_GRAY)
+            doc.rect(activeX, activeY, colW, 7, 'F')
+            doc.setDrawColor(...BORDER)
+            doc.rect(activeX, activeY, colW, 7, 'S')
+            doc.setTextColor(...MID_GRAY)
+            doc.setFontSize(7)
+            doc.setFont('helvetica', 'bold')
+            const locText = doc.splitTextToSize(loc, colW - 6)
+            doc.text(locText[0], activeX + 3, activeY + 4.8)
+            activeY += 8
+ 
+            locIssues.forEach((issue, idx) => {
+              const issueLine = toTitleCase(issue.issue_type)
+              const locationLine = [issue.space_type, issue.location].filter(Boolean).join(' — ')
+              const noteText = issue.notes || ''
+              const issueLines = doc.splitTextToSize(issueLine, colW - 12)
+              const locLines = locationLine ? doc.splitTextToSize(locationLine, colW - 12) : []
+              const noteLines2 = noteText ? doc.splitTextToSize(noteText, colW - 12) : []
+              const rowH = (issueLines.length * 4) + (locLines.length * 3.5) + (noteLines2.length * 3.5) + 5
+ 
+              // Switch column or add page if needed
+              if (activeY + rowH > 265) {
+                if (!useCol2) {
+                  col1Y = activeY
+                  useCol2 = true
+                  activeX = col2X
+                  activeY = col2Y
+                } else {
+                  col1Y = 0; col2Y = 0
+                  addPage()
+                  useCol2 = false
+                  activeX = col1X
+                  activeY = y
+                }
+              }
+ 
+              const bg = idx % 2 === 0 ? LIGHT_GRAY : WHITE
+              doc.setFillColor(...bg)
+              doc.rect(activeX, activeY, colW, rowH, 'F')
+              doc.setDrawColor(...BORDER)
+              doc.rect(activeX, activeY, colW, rowH, 'S')
+              doc.setFillColor(...(catColors[cat] || CHARCOAL))
+              doc.circle(activeX + 4, activeY + 4, 1.2, 'F')
+              doc.setTextColor(...DARK)
+              doc.setFontSize(7.5)
+              doc.setFont('helvetica', 'bold')
+              doc.text(issueLines, activeX + 8, activeY + 4.5)
+              let iy = activeY + 4.5 + (issueLines.length * 4)
+              if (locLines.length > 0) {
+                doc.setTextColor(...MUTED)
+                doc.setFontSize(6.5)
+                doc.setFont('helvetica', 'normal')
+                doc.text(locLines, activeX + 8, iy)
+                iy += locLines.length * 3.5
+              }
+              if (noteLines2.length > 0) {
+                doc.setTextColor(100, 100, 100)
+                doc.setFontSize(6.5)
+                doc.setFont('helvetica', 'italic')
+                doc.text(noteLines2, activeX + 8, iy)
+              }
+              activeY += rowH + 1
+            })
+            activeY += 3
+          })
+ 
+          // Save column position
+          if (useCol2) { col2Y = activeY + 4 } else { col1Y = activeY + 4 }
         })
  
-        if (useCol2) { col2Y = curY } else { col1Y = curY }
-        curY += 4
-        if (useCol2) { col2Y = curY } else { col1Y = curY }
-      })
- 
-      // Sync y to the furthest column
-      y = Math.max(col1Y, col2Y) + 4
+        y = Math.max(col1Y, col2Y) + 4
       } // end section1
  
       // ── SECTION 2: DETAILED ISSUE SUMMARY ──
