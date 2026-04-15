@@ -7,48 +7,49 @@ import Head from 'next/head'
 export default function AddIssue() {
   const router = useRouter()
   const { id, category, wing, floor } = router.query
-  const fileRef = useRef()
 
-  const [inspection, setInspection] = useState(null)
+  // ── ROOM-LEVEL STATE (set once per room) ──
   const [spaceType, setSpaceType] = useState('')
   const [location, setLocation] = useState('')
-  const [issueType, setIssueType] = useState('')
-  const [customIssue, setCustomIssue] = useState('')
-  const [notes, setNotes] = useState('')
-  const [photo, setPhoto] = useState(null)
-  const [photoPreview, setPhotoPreview] = useState(null)
-  const [saving, setSaving] = useState(false)
-  const [customSpaces, setCustomSpaces] = useState([])
-  const [customIssues, setCustomIssues] = useState([])
-  const [showSaveCustom, setShowSaveCustom] = useState(false)
-  const [showSaveCustomSpace, setShowSaveCustomSpace] = useState(false)
+  const [confirmedCustomSpace, setConfirmedCustomSpace] = useState('')
   const [customSpaceInput, setCustomSpaceInput] = useState('')
   const [showCustomSpaceInput, setShowCustomSpaceInput] = useState(false)
-  const [confirmedCustomSpace, setConfirmedCustomSpace] = useState('')
+  const [showSaveCustomSpace, setShowSaveCustomSpace] = useState(false)
+
+  // ── ISSUE LIST STATE (multiple per room) ──
+  const [issueList, setIssueList] = useState([])
+
+  // ── CURRENT ISSUE BEING BUILT ──
+  const [currentIssueType, setCurrentIssueType] = useState('')
+  const [currentCustomIssue, setCurrentCustomIssue] = useState('')
+  const [currentNotes, setCurrentNotes] = useState('')
+  const [currentPhoto, setCurrentPhoto] = useState(null)
+  const [currentPhotoPreview, setCurrentPhotoPreview] = useState(null)
+  const [showAddIssueForm, setShowAddIssueForm] = useState(true)
+  const [showSaveCustomIssue, setShowSaveCustomIssue] = useState(false)
+
+  // ── GLOBAL STATE ──
+  const [customSpaces, setCustomSpaces] = useState([])
+  const [customIssues, setCustomIssues] = useState([])
+  const [saving, setSaving] = useState(false)
+  const fileRef = useRef()
 
   useEffect(() => {
-    if (id) {
-      loadInspection()
+    if (id && category) {
       loadCustomItems()
-      // Load last used space type from session
+      // Restore last used space type
       if (category === 'Interior') {
         const lastSpace = sessionStorage.getItem('rcs_last_space_type')
         if (lastSpace) setSpaceType(lastSpace)
       }
     }
-  }, [id])
-
-  async function loadInspection() {
-    const { data } = await supabase.from('inspections').select('*').eq('id', id).single()
-    setInspection(data)
-  }
+  }, [id, category])
 
   async function loadCustomItems() {
     const { data } = await supabase.from('custom_items').select('*')
     if (data) {
       setCustomSpaces(data.filter(i => i.item_type === 'space_type').map(i => i.value))
-      const issueType = getIssueTypeKey()
-      setCustomIssues(data.filter(i => i.item_type === issueType).map(i => i.value))
+      setCustomIssues(data.filter(i => i.item_type === getIssueTypeKey()).map(i => i.value))
     }
   }
 
@@ -59,36 +60,148 @@ export default function AddIssue() {
     return 'paperwork_item'
   }
 
-  function getIssueList() {
-    if (category === 'Interior') return [...INTERIOR_ISSUES, ...customIssues]
-    if (category === 'Exterior') return [...EXTERIOR_ISSUES, ...customIssues]
-    if (category === 'Possible Critical Issues') return [...CRITICAL_ISSUES, ...customIssues]
-    return [...customIssues]
+  function getIssueOptions() {
+    const base =
+      category === 'Interior' ? INTERIOR_ISSUES :
+      category === 'Exterior' ? EXTERIOR_ISSUES :
+      category === 'Possible Critical Issues' ? CRITICAL_ISSUES : []
+    return [...base, ...customIssues]
   }
 
+  function getFinalSpaceType() {
+    return confirmedCustomSpace || spaceType
+  }
+
+  // ── PHOTO HANDLER ──
   function handlePhotoChange(e) {
     const file = e.target.files[0]
     if (!file) return
-    setPhoto(file)
-    setPhotoPreview(URL.createObjectURL(file))
+    setCurrentPhoto(file)
+    setCurrentPhotoPreview(URL.createObjectURL(file))
   }
 
-  function handleIssueChange(val) {
-    setIssueType(val)
-    if (val === '__custom__') setCustomIssue('')
-    else setCustomIssue('')
+  async function compressPhoto(file) {
+    return new Promise(resolve => {
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        const img = new Image()
+        img.onload = () => {
+          const canvas = document.createElement('canvas')
+          const maxSize = 800
+          let w = img.width, h = img.height
+          if (w > maxSize || h > maxSize) {
+            if (w > h) { h = Math.round(h * maxSize / w); w = maxSize }
+            else { w = Math.round(w * maxSize / h); h = maxSize }
+          }
+          canvas.width = w; canvas.height = h
+          canvas.getContext('2d').drawImage(img, 0, 0, w, h)
+          resolve(canvas.toDataURL('image/jpeg', 0.7))
+        }
+        img.src = reader.result
+      }
+      reader.readAsDataURL(file)
+    })
   }
 
-  async function saveCustomIssue(permanently) {
-    const finalIssue = issueType === '__custom__' ? customIssue.trim() : issueType
-    if (permanently && finalIssue) {
-      await supabase.from('custom_items').insert({ item_type: getIssueTypeKey(), value: finalIssue })
+  // ── ADD ISSUE TO BATCH ──
+  async function handleAddIssueToBatch() {
+    const issueVal = currentIssueType === '__custom__' ? currentCustomIssue.trim() : currentIssueType
+    if (!issueVal) { alert('Please select or enter an issue.'); return }
+
+    // If custom issue, ask about saving permanently
+    if (currentIssueType === '__custom__' && currentCustomIssue.trim()) {
+      setShowSaveCustomIssue(true)
+      return
     }
-    setShowSaveCustom(false)
-    await saveIssue(finalIssue)
+
+    await addIssueToBatch(issueVal, false)
   }
 
-  async function saveCustomSpace(permanently) {
+  async function addIssueToBatch(issueVal, saveCustomPermanently) {
+    if (saveCustomPermanently && issueVal) {
+      await supabase.from('custom_items').insert({ item_type: getIssueTypeKey(), value: issueVal })
+      setCustomIssues(prev => [...prev, issueVal])
+    }
+    setShowSaveCustomIssue(false)
+
+    // Compress photo if present
+    let photoUrl = null
+    if (currentPhoto) {
+      photoUrl = await compressPhoto(currentPhoto)
+    }
+
+    const newIssue = {
+      tempId: Date.now(),
+      issue_type: issueVal,
+      notes: currentNotes.trim(),
+      photo_url: photoUrl,
+      photo_preview: currentPhotoPreview,
+    }
+
+    setIssueList(prev => [...prev, newIssue])
+
+    // Reset issue form for next issue
+    setCurrentIssueType('')
+    setCurrentCustomIssue('')
+    setCurrentNotes('')
+    setCurrentPhoto(null)
+    setCurrentPhotoPreview(null)
+  }
+
+  function removeIssueFromBatch(tempId) {
+    setIssueList(prev => prev.filter(i => i.tempId !== tempId))
+  }
+
+  // ── SAVE ALL ISSUES ──
+  async function handleSaveAll() {
+    if (issueList.length === 0) { alert('Please add at least one issue.'); return }
+    setSaving(true)
+
+    const finalSpaceType = getFinalSpaceType()
+
+    // Remember last used space type
+    if (category === 'Interior' && finalSpaceType) {
+      sessionStorage.setItem('rcs_last_space_type', finalSpaceType)
+    }
+
+    try {
+      // Insert all issues at once
+      const rows = issueList.map(issue => ({
+        inspection_id: id,
+        category: category,
+        wing: category === 'Interior' ? wing : null,
+        floor: category === 'Interior' ? floor : null,
+        space_type: category === 'Interior' ? (finalSpaceType || null) : null,
+        location: location.trim() || null,
+        issue_type: issue.issue_type,
+        notes: issue.notes || null,
+        photo_url: issue.photo_url || null,
+      }))
+
+      const { error } = await supabase.from('issues').insert(rows)
+
+      if (error) {
+        alert('Error saving issues. Please try again.')
+        setSaving(false)
+        return
+      }
+
+      // Update issue count
+      const { data: existing } = await supabase
+        .from('inspections').select('issue_count').eq('id', id).single()
+      await supabase.from('inspections')
+        .update({ issue_count: (existing?.issue_count || 0) + rows.length })
+        .eq('id', id)
+
+      router.back()
+    } catch (e) {
+      alert('Error saving issues. Please try again.')
+      setSaving(false)
+    }
+  }
+
+  // ── CUSTOM SPACE HANDLERS ──
+  async function handleSaveCustomSpace(permanently) {
     const val = customSpaceInput.trim()
     if (permanently && val) {
       await supabase.from('custom_items').insert({ item_type: 'space_type', value: val })
@@ -100,78 +213,19 @@ export default function AddIssue() {
     setShowCustomSpaceInput(false)
   }
 
-  async function handleSave() {
-    const finalIssue = issueType === '__custom__' ? customIssue.trim() : issueType
-    if (!finalIssue) { alert('Please select or enter an issue type.'); return }
-
-    if (issueType === '__custom__' && customIssue.trim()) {
-      setShowSaveCustom(true)
-      return
-    }
-    if (spaceType === '__custom__' && customSpaceInput.trim()) {
-      setShowSaveCustomSpace(true)
-      return
-    }
-    await saveIssue(finalIssue)
-  }
-
-  async function saveIssue(finalIssue) {
-    setSaving(true)
-    let photoUrl = null
-
-    if (photo) {
-      const ext = photo.name.split('.').pop()
-      const fileName = `${uuidv4()}.${ext}`
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('inspection-photos')
-        .upload(fileName, photo)
-      if (!uploadError) {
-        const { data: urlData } = supabase.storage.from('inspection-photos').getPublicUrl(fileName)
-        photoUrl = urlData.publicUrl
-      }
-    }
-
-    const finalSpaceType = confirmedCustomSpace || (spaceType === '__custom__' ? customSpaceInput.trim() : spaceType)
-
-    // Remember last used space type for next issue
-    if (category === 'Interior' && finalSpaceType) {
-      sessionStorage.setItem('rcs_last_space_type', finalSpaceType)
-    }
-
-    const { error } = await supabase.from('issues').insert({
-      inspection_id: id,
-      category: category,
-      wing: category === 'Interior' ? wing : null,
-      floor: category === 'Interior' ? floor : null,
-      space_type: category === 'Interior' ? finalSpaceType : null,
-      location: location.trim(),
-      issue_type: finalIssue,
-      notes: notes.trim(),
-      photo_url: photoUrl,
-    })
-
-    if (!error) {
-      const { data: existing } = await supabase.from('inspections').select('issue_count').eq('id', id).single()
-      await supabase.from('inspections').update({ issue_count: (existing?.issue_count || 0) + 1 }).eq('id', id)
-      router.back()
-    } else {
-      alert('Error saving issue. Please try again.')
-      setSaving(false)
-    }
-  }
-
   const allSpaceTypes = [...SPACE_TYPES, ...customSpaces]
+  const issueOptions = getIssueOptions()
 
   return (
     <>
-      <Head><title>Add Issue — RCS</title></Head>
+      <Head><title>Add Issues — RCS</title></Head>
       <div className="app-container form-screen">
         <div className="back-bar">
           <button className="back-btn" onClick={() => router.back()}>←</button>
-          <span className="back-title">Add {category} Issue</span>
+          <span className="back-title">Add {category} Issues</span>
         </div>
 
-        {/* LOCKED LOCATION for interior */}
+        {/* LOCKED WING/FLOOR */}
         {category === 'Interior' && (
           <div className="lock-bar">
             <span className="lock-label">In:</span>
@@ -181,7 +235,8 @@ export default function AddIssue() {
         )}
 
         <div className="form-body">
-          {/* SPACE TYPE — interior only */}
+
+          {/* ── ROOM INFO (set once) ── */}
           {category === 'Interior' && (
             <div className="form-group">
               <label className="form-label">Space Type</label>
@@ -192,27 +247,22 @@ export default function AddIssue() {
                     placeholder="Type custom space type..." autoFocus />
                   <div style={{display:'flex', gap:'8px', marginTop:'8px'}}>
                     <button className="save-btn" style={{flex:1, padding:'10px', fontSize:'12px'}}
-                      onClick={() => { setSpaceType('__custom__'); setConfirmedCustomSpace(customSpaceInput.trim()); setShowSaveCustomSpace(true) }}>
-                      Use This Space Type
+                      onClick={() => { setConfirmedCustomSpace(customSpaceInput.trim()); setShowSaveCustomSpace(true) }}>
+                      Use This
                     </button>
                     <button className="modal-btn cancel" style={{flex:1, padding:'10px', fontSize:'12px'}}
-                      onClick={() => { setShowCustomSpaceInput(false); setCustomSpaceInput(''); setConfirmedCustomSpace('') }}>
+                      onClick={() => { setShowCustomSpaceInput(false); setCustomSpaceInput('') }}>
                       Cancel
                     </button>
                   </div>
                 </div>
               ) : confirmedCustomSpace ? (
                 <div style={{display:'flex', alignItems:'center', gap:'8px'}}>
-                  <div style={{
-                    flex:1, background:'var(--white)', border:'1px solid var(--border)',
-                    borderRadius:'10px', padding:'11px 13px', fontSize:'13px',
-                    color:'var(--dark)', fontWeight:'500'
-                  }}>
+                  <div style={{flex:1, background:'var(--white)', border:'1px solid var(--border)', borderRadius:'10px', padding:'11px 13px', fontSize:'13px', color:'var(--dark)', fontWeight:'500'}}>
                     {confirmedCustomSpace}
                   </div>
                   <button onClick={() => { setConfirmedCustomSpace(''); setSpaceType(''); setCustomSpaceInput('') }}
-                    style={{background:'none', border:'1px solid var(--border)', borderRadius:'8px',
-                    padding:'8px 12px', fontSize:'12px', color:'var(--muted)', cursor:'pointer', whiteSpace:'nowrap'}}>
+                    style={{background:'none', border:'1px solid var(--border)', borderRadius:'8px', padding:'8px 12px', fontSize:'12px', color:'var(--muted)', cursor:'pointer'}}>
                     Change
                   </button>
                 </div>
@@ -229,74 +279,120 @@ export default function AddIssue() {
             </div>
           )}
 
-          {/* ROOM / LOCATION */}
           <div className="form-group">
             <label className="form-label">Room / Location</label>
             <input className="form-input" value={location} onChange={e => setLocation(e.target.value)}
-              placeholder={category === 'Interior' ? 'e.g. Room 214B, Near Nurses Station' : 'e.g. Front Entrance, North Side'} />
+              placeholder={category === 'Interior' ? 'e.g. Room 223' : 'e.g. Front Entrance'} />
           </div>
 
-          {/* ISSUE TYPE */}
-          <div className="form-group">
-            <label className="form-label">Issue</label>
-            {issueType === '__custom__' ? (
-              <div>
-                <input className="form-input" value={customIssue} onChange={e => setCustomIssue(e.target.value)}
-                  placeholder="Describe the issue..." autoFocus />
-                <button className="modal-btn cancel" style={{marginTop:'6px', padding:'8px', fontSize:'11px'}}
-                  onClick={() => setIssueType('')}>← Back to list</button>
+          <div style={{height:'1px', background:'var(--border)', margin:'4px 0 16px'}} />
+
+          {/* ── ISSUES ADDED SO FAR ── */}
+          {issueList.length > 0 && (
+            <div style={{marginBottom:'16px'}}>
+              <div className="form-label" style={{marginBottom:'8px'}}>
+                Issues added ({issueList.length}):
               </div>
-            ) : (
-              <select className="form-select" value={issueType} onChange={e => handleIssueChange(e.target.value)}>
-                <option value="">Select issue...</option>
-                {getIssueList().map(i => <option key={i} value={i}>{i}</option>)}
-                <option value="__custom__">+ Other (Custom)</option>
-              </select>
-            )}
-          </div>
-
-          {/* NOTES */}
-          <div className="form-group">
-            <label className="form-label">Notes (optional)</label>
-            <textarea className="form-textarea" value={notes} onChange={e => setNotes(e.target.value)}
-              placeholder="Add any relevant details..." />
-          </div>
-
-          {/* PHOTO */}
-          <div className="form-group">
-            <label className="form-label">Photo (optional)</label>
-            <input type="file" accept="image/*" capture="environment" ref={fileRef} style={{display:'none'}} onChange={handlePhotoChange} />
-            {photoPreview ? (
-              <div>
-                <img src={photoPreview} className="photo-preview" alt="Preview" />
-                <button className="modal-btn cancel" style={{marginTop:'8px', fontSize:'11px'}}
-                  onClick={() => { setPhoto(null); setPhotoPreview(null) }}>Remove Photo</button>
-              </div>
-            ) : (
-              <div className="photo-btn" onClick={() => fileRef.current?.click()}>
-                📷 &nbsp; Tap to take or upload photo
-              </div>
-            )}
-          </div>
-
-          <button className="save-btn" onClick={handleSave} disabled={saving}>
-            {saving ? 'Saving...' : 'Save Issue'}
-          </button>
-        </div>
-
-        {/* CUSTOM ISSUE SAVE MODAL */}
-        {showSaveCustom && (
-          <div className="modal-overlay">
-            <div className="modal-sheet">
-              <div className="modal-title">Save "{customIssue}" permanently?</div>
-              <p style={{fontSize:'13px', color:'var(--muted)', marginBottom:'16px', lineHeight:'1.5'}}>
-                Add this to your dropdown list so you can select it quickly on future inspections.
-              </p>
-              <button className="save-btn" onClick={() => saveCustomIssue(true)}>Yes — Add to my list</button>
-              <button className="modal-btn cancel" style={{marginTop:'8px'}} onClick={() => saveCustomIssue(false)}>No — Just use it this once</button>
+              {issueList.map((issue, idx) => (
+                <div key={issue.tempId} style={{
+                  background:'var(--white)', border:'1px solid var(--border)',
+                  borderRadius:'10px', padding:'10px 12px', marginBottom:'8px',
+                  display:'flex', justifyContent:'space-between', alignItems:'flex-start'
+                }}>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:'12px', fontWeight:'600', color:'var(--dark)'}}>{issue.issue_type}</div>
+                    {issue.notes && <div style={{fontSize:'11px', color:'var(--muted)', marginTop:'2px'}}>{issue.notes}</div>}
+                    {issue.photo_url && <span className="photo-tag" style={{marginTop:'4px'}}>📷 photo</span>}
+                  </div>
+                  <button onClick={() => removeIssueFromBatch(issue.tempId)}
+                    style={{background:'none', border:'none', color:'#c0392b', fontSize:'16px', cursor:'pointer', marginLeft:'8px', flexShrink:0}}>
+                    ✕
+                  </button>
+                </div>
+              ))}
             </div>
+          )}
+
+          {/* ── ADD ISSUE FORM ── */}
+          <div style={{background:'var(--light-gray)', borderRadius:'12px', padding:'14px', marginBottom:'16px'}}>
+            <div className="form-label" style={{marginBottom:'10px'}}>
+              {issueList.length === 0 ? 'Add first issue:' : 'Add another issue:'}
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Issue</label>
+              {currentIssueType === '__custom__' ? (
+                <div>
+                  <input className="form-input" value={currentCustomIssue}
+                    onChange={e => setCurrentCustomIssue(e.target.value)}
+                    placeholder="Describe the issue..." autoFocus />
+                  <button className="modal-btn cancel" style={{marginTop:'6px', padding:'8px', fontSize:'11px'}}
+                    onClick={() => { setCurrentIssueType(''); setCurrentCustomIssue('') }}>
+                    ← Back to list
+                  </button>
+                </div>
+              ) : (
+                <select className="form-select" value={currentIssueType}
+                  onChange={e => { setCurrentIssueType(e.target.value); setCurrentCustomIssue('') }}>
+                  <option value="">Select issue...</option>
+                  {issueOptions.map(i => <option key={i} value={i}>{i}</option>)}
+                  <option value="__custom__">+ Other (Custom)</option>
+                </select>
+              )}
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Notes (optional)</label>
+              <textarea className="form-textarea" value={currentNotes}
+                onChange={e => setCurrentNotes(e.target.value)}
+                placeholder="Add any relevant details..." />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Photo (optional)</label>
+              <input type="file" accept="image/*" capture="environment" ref={fileRef}
+                style={{display:'none'}} onChange={handlePhotoChange} />
+              {currentPhotoPreview ? (
+                <div>
+                  <img src={currentPhotoPreview} className="photo-preview" alt="Preview" />
+                  <button className="modal-btn cancel" style={{marginTop:'8px', fontSize:'11px'}}
+                    onClick={() => { setCurrentPhoto(null); setCurrentPhotoPreview(null) }}>
+                    Remove Photo
+                  </button>
+                </div>
+              ) : (
+                <div className="photo-btn" onClick={() => fileRef.current?.click()}>
+                  📷 &nbsp; Tap to take or upload photo
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={handleAddIssueToBatch}
+              style={{
+                width:'100%', background:'var(--slate)', color:'white', border:'none',
+                borderRadius:'24px', padding:'12px', fontSize:'13px', fontWeight:'500',
+                fontFamily:'var(--font)', cursor:'pointer'
+              }}>
+              + Add Issue to Room
+            </button>
           </div>
-        )}
+
+          {/* ── SAVE ALL BUTTON ── */}
+          <button className="save-btn" onClick={handleSaveAll}
+            disabled={saving || issueList.length === 0}
+            style={{opacity: issueList.length === 0 ? 0.4 : 1}}>
+            {saving ? 'Saving...' : `Save ${issueList.length} Issue${issueList.length !== 1 ? 's' : ''}`}
+          </button>
+
+          {issueList.length === 0 && (
+            <div style={{textAlign:'center', fontSize:'11px', color:'var(--muted)', marginTop:'8px'}}>
+              Add at least one issue above before saving
+            </div>
+          )}
+
+          <button className="btn-ghost" onClick={() => router.back()}>Cancel</button>
+        </div>
 
         {/* CUSTOM SPACE SAVE MODAL */}
         {showSaveCustomSpace && (
@@ -306,8 +402,22 @@ export default function AddIssue() {
               <p style={{fontSize:'13px', color:'var(--muted)', marginBottom:'16px', lineHeight:'1.5'}}>
                 Add this space type to your list for future inspections.
               </p>
-              <button className="save-btn" onClick={() => saveCustomSpace(true)}>Yes — Add to my list</button>
-              <button className="modal-btn cancel" style={{marginTop:'8px'}} onClick={() => saveCustomSpace(false)}>No — Just use it this once</button>
+              <button className="save-btn" onClick={() => handleSaveCustomSpace(true)}>Yes — Add to my list</button>
+              <button className="modal-btn cancel" style={{marginTop:'8px'}} onClick={() => handleSaveCustomSpace(false)}>No — Just use it this once</button>
+            </div>
+          </div>
+        )}
+
+        {/* CUSTOM ISSUE SAVE MODAL */}
+        {showSaveCustomIssue && (
+          <div className="modal-overlay">
+            <div className="modal-sheet">
+              <div className="modal-title">Save "{currentCustomIssue}" permanently?</div>
+              <p style={{fontSize:'13px', color:'var(--muted)', marginBottom:'16px', lineHeight:'1.5'}}>
+                Add this to your dropdown list for future inspections.
+              </p>
+              <button className="save-btn" onClick={() => addIssueToBatch(currentCustomIssue.trim(), true)}>Yes — Add to my list</button>
+              <button className="modal-btn cancel" style={{marginTop:'8px'}} onClick={() => addIssueToBatch(currentCustomIssue.trim(), false)}>No — Just use it this once</button>
             </div>
           </div>
         )}
