@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/router'
 import { supabase } from '../../lib/supabase'
 import Head from 'next/head'
@@ -27,9 +27,20 @@ export default function Inspection() {
     const { data: insp } = await supabase.from('inspections').select('*').eq('id', id).single()
     if (insp) {
       setInspection(insp)
-      if (insp.wings?.length > 0) {
-        setActiveWing(insp.wings[0].name)
-        setActiveFloor('Floor 1')
+      if (initialLoad.current && insp.wings?.length > 0) {
+        const savedWing = sessionStorage.getItem('rcs_wing')
+        const savedFloor = sessionStorage.getItem('rcs_floor')
+        const wingExists = savedWing && insp.wings.find(w => w.name === savedWing)
+        if (wingExists) {
+          setActiveWing(savedWing)
+          setActiveFloor(savedFloor || 'Floor 1')
+        } else {
+          setActiveWing(insp.wings[0].name)
+          setActiveFloor('Floor 1')
+          sessionStorage.setItem('rcs_wing', insp.wings[0].name)
+          sessionStorage.setItem('rcs_floor', 'Floor 1')
+        }
+        initialLoad.current = false
       }
     }
     const { data: iss } = await supabase.from('issues').select('*').eq('inspection_id', id).order('created_at', { ascending: true })
