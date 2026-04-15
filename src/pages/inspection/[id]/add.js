@@ -154,7 +154,21 @@ export default function AddIssue() {
 
   // ── SAVE ALL ISSUES ──
   async function handleSaveAll() {
-    if (issueList.length === 0) { alert('Please add at least one issue.'); return }
+    // If there's an issue in the form that hasn't been added to the list yet, add it first
+    let finalList = [...issueList]
+    const formIssueVal = currentIssueType === '__custom__' ? currentCustomIssue.trim() : currentIssueType
+    if (formIssueVal) {
+      let photoUrl = null
+      if (currentPhoto) photoUrl = await compressPhoto(currentPhoto)
+      finalList = [...finalList, {
+        tempId: Date.now(),
+        issue_type: formIssueVal,
+        notes: currentNotes.trim(),
+        photo_url: photoUrl,
+      }]
+    }
+
+    if (finalList.length === 0) { alert('Please add at least one issue.'); return }
     setSaving(true)
 
     const finalSpaceType = getFinalSpaceType()
@@ -166,7 +180,7 @@ export default function AddIssue() {
 
     try {
       // Insert all issues at once
-      const rows = issueList.map(issue => ({
+      const rows = finalList.map(issue => ({
         inspection_id: id,
         category: category,
         wing: category === 'Interior' ? wing : null,
@@ -316,7 +330,7 @@ export default function AddIssue() {
           {/* ── ADD ISSUE FORM ── */}
           <div style={{background:'var(--light-gray)', borderRadius:'12px', padding:'14px', marginBottom:'16px'}}>
             <div className="form-label" style={{marginBottom:'10px'}}>
-              {issueList.length === 0 ? 'Add first issue:' : 'Add another issue:'}
+              {issueList.length === 0 ? 'Add issue:' : 'Add another issue:'}
             </div>
 
             <div className="form-group">
@@ -374,20 +388,24 @@ export default function AddIssue() {
                 borderRadius:'24px', padding:'12px', fontSize:'13px', fontWeight:'500',
                 fontFamily:'var(--font)', cursor:'pointer'
               }}>
-              + Add Issue to Room
+              + Add to List
             </button>
           </div>
 
           {/* ── SAVE ALL BUTTON ── */}
           <button className="save-btn" onClick={handleSaveAll}
-            disabled={saving || issueList.length === 0}
-            style={{opacity: issueList.length === 0 ? 0.4 : 1}}>
-            {saving ? 'Saving...' : `Save ${issueList.length} Issue${issueList.length !== 1 ? 's' : ''}`}
+            disabled={saving || (issueList.length === 0 && !currentIssueType)}
+            style={{opacity: (issueList.length === 0 && !currentIssueType) ? 0.4 : 1}}>
+            {saving ? 'Saving...' : (() => {
+              const formHas = (currentIssueType && currentIssueType !== '__custom__') || (currentIssueType === '__custom__' && currentCustomIssue.trim())
+              const total = issueList.length + (formHas ? 1 : 0)
+              return `Save ${total} Issue${total !== 1 ? 's' : ''}`
+            })()}
           </button>
 
-          {issueList.length === 0 && (
+          {issueList.length === 0 && !currentIssueType && (
             <div style={{textAlign:'center', fontSize:'11px', color:'var(--muted)', marginTop:'8px'}}>
-              Add at least one issue above before saving
+              Select an issue above to save
             </div>
           )}
 
