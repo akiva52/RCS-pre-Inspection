@@ -11,12 +11,36 @@ export default function Inspection() {
   const { id } = router.query
   const [inspection, setInspection] = useState(null)
   const [issues, setIssues] = useState([])
-  const [activeCategory, setActiveCategory] = useState('Interior')
-  const [activeWing, setActiveWing] = useState('')
-  const [activeFloor, setActiveFloor] = useState('')
+  const [activeCategory, setActiveCategory] = useState(() =>
+    typeof window !== 'undefined' ? sessionStorage.getItem('rcs_category') || 'Interior' : 'Interior'
+  )
+  const [activeWing, setActiveWing] = useState(() =>
+    typeof window !== 'undefined' ? sessionStorage.getItem('rcs_wing') || '' : ''
+  )
+  const [activeFloor, setActiveFloor] = useState(() =>
+    typeof window !== 'undefined' ? sessionStorage.getItem('rcs_floor') || '' : ''
+  )
   const [loading, setLoading] = useState(true)
   const [menuIssue, setMenuIssue] = useState(null)
   const [showLocationModal, setShowLocationModal] = useState(false)
+  const [showEditWings, setShowEditWings] = useState(false)
+  const [newWingName, setNewWingName] = useState('')
+  const [newWingFloors, setNewWingFloors] = useState('1')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [showSearch, setShowSearch] = useState(false)
+  const hasLoaded = useRef(false)
+
+  useEffect(() => {
+    if (activeWing) sessionStorage.setItem('rcs_wing', activeWing)
+  }, [activeWing])
+
+  useEffect(() => {
+    if (activeFloor) sessionStorage.setItem('rcs_floor', activeFloor)
+  }, [activeFloor])
+
+  useEffect(() => {
+    sessionStorage.setItem('rcs_category', activeCategory)
+  }, [activeCategory])
 
   useEffect(() => {
     if (id) loadData()
@@ -24,39 +48,63 @@ export default function Inspection() {
 
   async function loadData() {
     setLoading(true)
-    const { data: insp } = await supabase.from('inspections').select('*').eq('id', id).single()
-    if (insp) {
+    try {
+      const { data: insp, error: inspError } = await supabase
+        .from('inspections').select('*').eq('id', id).single()
+
+      if (inspError || !insp) { setLoading(false); return }
+
       setInspection(insp)
-      if (initialLoad.current && insp.wings?.length > 0) {
+
+      // Only set default wing on very first load
+      if (!hasLoaded.current && insp.wings?.length > 0) {
         const savedWing = sessionStorage.getItem('rcs_wing')
-        const savedFloor = sessionStorage.getItem('rcs_floor')
         const wingExists = savedWing && insp.wings.find(w => w.name === savedWing)
-        if (wingExists) {
-          setActiveWing(savedWing)
-          setActiveFloor(savedFloor || 'Floor 1')
-        } else {
+        if (!wingExists) {
           setActiveWing(insp.wings[0].name)
           setActiveFloor('Floor 1')
-          sessionStorage.setItem('rcs_wing', insp.wings[0].name)
-          sessionStorage.setItem('rcs_floor', 'Floor 1')
         }
-        initialLoad.current = false
+        hasLoaded.current = true
       }
+
+      const { data: iss } = await supabase
+        .from('issues').select('*')
+        .eq('inspection_id', id)
+        .order('created_at', { ascending: true })
+
+      setIssues(iss || [])
+    } catch (e) {
+      console.error('Load error:', e)
     }
-    const { data: iss } = await supabase.from('issues').select('*').eq('inspection_id', id).order('created_at', { ascending: true })
-    setIssues(iss || [])
     setLoading(false)
   }
 
   async function deleteIssue(issueId) {
     await supabase.from('issues').delete().eq('id', issueId)
-    setIssues(issues.filter(i => i.id !== issueId))
-    await updateIssueCount(issues.length - 1)
+    const newIssues = issues.filter(i => i.id !== issueId)
+    setIssues(newIssues)
+    await supabase.from('inspections').update({ issue_count: newIssues.length }).eq('id', id)
     setMenuIssue(null)
   }
 
-  async function updateIssueCount(count) {
-    await supabase.from('inspections').update({ issue_count: count }).eq('id', id)
+  async function addWing() {
+    if (!newWingName.trim()) return
+    const updatedWings = [...(inspection.wings || []), { name: newWingName.trim(), floors: parseInt(newWingFloors) || 1 }]
+    await supabase.from('inspections').update({ wings: updatedWings }).eq('id', id)
+    setInspection({ ...inspection, wings: updatedWings })
+    setNewWingName('')
+    setNewWingFloors('1')
+  }
+
+  async function removeWing(wingName) {
+    if (!confirm(`Remove "${wingName}"? This won't delete its issues.`)) return
+    const updatedWings = inspection.wings.filter(w => w.name !== wingName)
+    await supabase.from('inspections').update({ wings: updatedWings }).eq('id', id)
+    setInspection({ ...inspection, wings: updatedWings })
+    if (activeWing === wingName && updatedWings.length > 0) {
+      setActiveWing(updatedWings[0].name)
+      setActiveFloor('Floor 1')
+    }
   }
 
   const filteredIssues = issues.filter(i => {
@@ -78,27 +126,6 @@ export default function Inspection() {
     ? Array.from({ length: currentWingObj.floors }, (_, i) => `Floor ${i + 1}`)
     : ['Floor 1']
 
-  async function addWing() {
-    if (!newWingName.trim()) return
-    const newWing = { name: newWingName.trim(), floors: parseInt(newWingFloors) || 1 }
-    const updatedWings = [...(inspection.wings || []), newWing]
-    await supabase.from('inspections').update({ wings: updatedWings }).eq('id', id)
-    setInspection({ ...inspection, wings: updatedWings })
-    setNewWingName('')
-    setNewWingFloors('1')
-  }
-
-  async function removeWing(wingName) {
-    if (!confirm(`Remove "${wingName}"? This won't delete its issues.`)) return
-    const updatedWings = inspection.wings.filter(w => w.name !== wingName)
-    await supabase.from('inspections').update({ wings: updatedWings }).eq('id', id)
-    setInspection({ ...inspection, wings: updatedWings })
-    if (activeWing === wingName && updatedWings.length > 0) {
-      setActiveWing(updatedWings[0].name)
-      setActiveFloor('Floor 1')
-    }
-  }
-
   if (loading) return <div className="app-container"><div className="loading">Loading inspection...</div></div>
   if (!inspection) return <div className="app-container"><div className="loading">Inspection not found.</div></div>
 
@@ -114,7 +141,7 @@ export default function Inspection() {
           <div className="header-sub">{inspection.facility_name} — {inspection.inspection_date}</div>
         </div>
 
-        {/* FACILITY / LOCATION STRIP */}
+        {/* FACILITY STRIP */}
         <div className="facility-strip">
           <span className="facility-name">
             {activeCategory === 'Interior' && activeWing
@@ -130,20 +157,39 @@ export default function Inspection() {
           </div>
         </div>
 
-        {/* LOCK BAR — only for interior */}
-        {activeCategory === 'Interior' && inspection.wings?.length > 0 && (
-          <div className="lock-bar">
-            <span className="lock-label">In:</span>
-            <button className="lock-pill" onClick={() => setShowLocationModal(true)}>
-              <div className="lock-dot" />
-              {activeWing || 'Select Wing'}
-            </button>
-            {activeWing && (
-              <button className="lock-pill" onClick={() => setShowLocationModal(true)}>
-                <div className="lock-dot" />
-                {activeFloor || 'Select Floor'}
+        {/* WING QUICK SWITCHER */}
+        {activeCategory === 'Interior' && inspection.wings?.length > 1 && (
+          <div style={{background:'var(--warm-gray)', padding:'8px 14px', display:'flex', gap:'6px', overflowX:'auto', borderBottom:'1px solid var(--border)'}}>
+            {inspection.wings.map(w => (
+              <button key={w.name} onClick={() => { setActiveWing(w.name); setActiveFloor('Floor 1') }}
+                style={{
+                  background: activeWing === w.name ? 'var(--charcoal)' : 'white',
+                  color: activeWing === w.name ? '#e8e4df' : 'var(--text)',
+                  border: '1px solid var(--border)', borderRadius:'20px',
+                  padding:'5px 14px', fontSize:'11px', fontWeight:'500',
+                  whiteSpace:'nowrap', cursor:'pointer', fontFamily:'var(--font)', flexShrink:0
+                }}>
+                {w.name}
               </button>
-            )}
+            ))}
+          </div>
+        )}
+
+        {/* FLOOR SWITCHER */}
+        {activeCategory === 'Interior' && activeWing && floorOptions.length > 1 && (
+          <div style={{background:'#f8f7f5', padding:'6px 14px', display:'flex', gap:'6px', overflowX:'auto', borderBottom:'1px solid var(--border)'}}>
+            {floorOptions.map(f => (
+              <button key={f} onClick={() => setActiveFloor(f)}
+                style={{
+                  background: activeFloor === f ? 'var(--mid-gray)' : 'white',
+                  color: activeFloor === f ? '#e8e4df' : 'var(--text)',
+                  border: '1px solid var(--border)', borderRadius:'20px',
+                  padding:'4px 12px', fontSize:'10px', fontWeight:'500',
+                  whiteSpace:'nowrap', cursor:'pointer', fontFamily:'var(--font)', flexShrink:0
+                }}>
+                {f}
+              </button>
+            ))}
           </div>
         )}
 
@@ -160,13 +206,9 @@ export default function Inspection() {
         {/* SEARCH BAR */}
         {showSearch && (
           <div style={{background:'var(--white)', padding:'8px 12px', borderBottom:'1px solid var(--border)', display:'flex', gap:'8px', alignItems:'center'}}>
-            <input
-              autoFocus
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
+            <input autoFocus value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
               placeholder="Search by room, issue, space type..."
-              style={{flex:1, background:'var(--light-gray)', border:'1px solid var(--border)', borderRadius:'8px', padding:'8px 12px', fontSize:'13px', fontFamily:'var(--font)', outline:'none'}}
-            />
+              style={{flex:1, background:'var(--light-gray)', border:'1px solid var(--border)', borderRadius:'8px', padding:'8px 12px', fontSize:'13px', fontFamily:'var(--font)', outline:'none'}} />
             <button onClick={() => { setShowSearch(false); setSearchQuery('') }}
               style={{background:'none', border:'none', color:'var(--muted)', fontSize:'13px', cursor:'pointer', padding:'4px', fontFamily:'var(--font)'}}>
               Cancel
@@ -178,8 +220,8 @@ export default function Inspection() {
         <div className="issues-body">
           {filteredIssues.length === 0 ? (
             <div className="empty-state">
-              <div className="empty-icon">📝</div>
-              <p>No {activeCategory.toLowerCase()} issues yet.<br />Tap the button below to add one.</p>
+              <div className="empty-icon">{showSearch && searchQuery ? '🔍' : '📝'}</div>
+              <p>{showSearch && searchQuery ? `No results for "${searchQuery}"` : `No ${activeCategory.toLowerCase()} issues yet.`}<br />{!showSearch || !searchQuery ? 'Tap below to add one.' : ''}</p>
             </div>
           ) : (
             filteredIssues.map(issue => (
@@ -187,17 +229,14 @@ export default function Inspection() {
                 <div className="issue-card-top">
                   <div style={{flex:1}}>
                     <div className="issue-location">
-                      {issue.wing && `${issue.wing}`}
-                      {issue.floor && ` · ${issue.floor}`}
-                      {issue.space_type && ` · ${issue.space_type}`}
-                      {issue.location && ` · ${issue.location}`}
+                      {[issue.wing, issue.floor, issue.space_type, issue.location].filter(Boolean).join(' · ')}
                     </div>
                     <div className="issue-name">{issue.issue_type}</div>
                   </div>
                   <button className="issue-menu-btn" onClick={() => setMenuIssue(issue)}>···</button>
                 </div>
                 {issue.notes && <div className="issue-notes">{issue.notes}</div>}
-                {issue.photo_url && <span className="photo-tag">📷 photo attached</span>}
+                {issue.photo_url && <span className="photo-tag">📷 photo</span>}
               </div>
             ))
           )}
@@ -212,8 +251,7 @@ export default function Inspection() {
               Add {activeCategory === 'Missing Paperwork' ? 'Paperwork' : activeCategory === 'Possible Critical Issues' ? 'Critical Issue' : activeCategory} Issue
             </button>
             <button className="add-btn" style={{width:'52px', flexShrink:0, borderRadius:'50%', padding:'0', background:'var(--mid-gray)'}}
-              onClick={() => { setShowSearch(!showSearch); setSearchQuery('') }}
-              title="Search">
+              onClick={() => { setShowSearch(!showSearch); setSearchQuery('') }}>
               🔍
             </button>
             <button className="add-btn" style={{width:'52px', flexShrink:0, borderRadius:'50%', padding:'0'}}
@@ -230,7 +268,8 @@ export default function Inspection() {
               <div className="modal-title">Change Location</div>
               <div className="form-group">
                 <label className="form-label">Wing / Section</label>
-                <select className="form-select" value={activeWing} onChange={e => { setActiveWing(e.target.value); setActiveFloor('Floor 1') }}>
+                <select className="form-select" value={activeWing}
+                  onChange={e => { setActiveWing(e.target.value); setActiveFloor('Floor 1') }}>
                   {inspection.wings?.map(w => <option key={w.name} value={w.name}>{w.name}</option>)}
                 </select>
               </div>
@@ -262,7 +301,7 @@ export default function Inspection() {
               <div style={{borderTop:'1px solid var(--border)', paddingTop:'12px', marginTop:'4px'}}>
                 <div style={{fontSize:'11px', color:'var(--muted)', marginBottom:'8px', fontWeight:'500', textTransform:'uppercase', letterSpacing:'0.06em'}}>Add New Wing</div>
                 <div className="form-group">
-                  <input className="form-input" value={newWingName} onChange={e => setNewWingName(e.target.value)} placeholder="Wing name e.g. East Wing" />
+                  <input className="form-input" value={newWingName} onChange={e => setNewWingName(e.target.value)} placeholder="e.g. East Wing" />
                 </div>
                 <div className="form-group">
                   <select className="form-select" value={newWingFloors} onChange={e => setNewWingFloors(e.target.value)}>
@@ -282,8 +321,8 @@ export default function Inspection() {
             <div className="modal-sheet" onClick={e => e.stopPropagation()}>
               <div className="modal-title">{menuIssue.issue_type}</div>
               <button className="modal-btn" onClick={() => { router.push(`/inspection/${id}/edit/${menuIssue.id}`); setMenuIssue(null) }}>✏️ &nbsp; Edit Issue</button>
-              <button className="modal-btn danger" onClick={() => deleteIssue(menuIssue.id)}>🗑 &nbsp; Delete Issue</button>
-              <button className="modal-btn cancel" onClick={() => setMenuIssue(null)}>Cancel</button>
+              <button className="modal-btn" style={{color:'#c0392b', borderColor:'#f5c6cb', background:'#fff5f5'}} onClick={() => deleteIssue(menuIssue.id)}>🗑 &nbsp; Delete Issue</button>
+              <button className="modal-btn" style={{color:'var(--muted)'}} onClick={() => setMenuIssue(null)}>Cancel</button>
             </div>
           </div>
         )}
