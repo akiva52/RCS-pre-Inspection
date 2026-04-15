@@ -192,13 +192,12 @@ export default function Report() {
       // ── COVER PAGE ──
       drawHeader()
  
-      // Table of contents
-      const toc = [
-        'Section 1  —  Executive Summary',
-        'Section 2  —  Detailed Issue Summary',
-        'Section 3  —  View 1: By Location (room by room with checkboxes)',
-        'Section 4  —  View 2: By Issue Type (same repairs grouped together)',
-      ]
+      // Table of contents - only show included sections with correct numbers
+      const toc = []
+      if (section1) toc.push(`Section ${sectionNums.s1}  —  Executive Summary`)
+      if (section2) toc.push(`Section ${sectionNums.s2}  —  Detailed Issue Summary`)
+      if (section3) toc.push(`Section ${sectionNums.s3}  —  View 1: By Location (room by room with checkboxes)`)
+      if (section4) toc.push(`Section ${sectionNums.s4}  —  View 2: By Issue Type (same repairs grouped together)`)
       toc.forEach(item => {
         doc.setTextColor(...MUTED)
         doc.setFontSize(8)
@@ -211,7 +210,7 @@ export default function Report() {
       const catColors = { 'Exterior': GREEN, 'Interior': SLATE, 'Possible Critical Issues': RUST, 'Missing Paperwork': PURPLE }
       if (section1) {
         addPage()
-        sectionBanner('SECTION 1 — EXECUTIVE SUMMARY', 'Plain language overview by location', CHARCOAL)
+        sectionBanner(`SECTION ${sectionNums.s1} — EXECUTIVE SUMMARY`, 'Plain language overview by location', CHARCOAL)
  
         const colW = (contentW - 6) / 2
         const col1X = margin
@@ -342,7 +341,7 @@ export default function Report() {
       // ── SECTION 2: DETAILED ISSUE SUMMARY ──
       if (section2) {
       addPage()
-      sectionBanner('SECTION 2 — DETAILED ISSUE SUMMARY', 'Each issue type with total count', CHARCOAL)
+      sectionBanner(`SECTION ${sectionNums.s2} — DETAILED ISSUE SUMMARY`, 'Each issue type with total count', CHARCOAL)
  
       // Count issues by type
       const issueCounts = {}
@@ -387,7 +386,7 @@ export default function Report() {
       // ── SECTION 3: BY LOCATION ──
       if (section3) {
       addPage()
-      sectionBanner('SECTION 3 — VIEW 1: BY LOCATION', 'Walk room by room — check off as completed', CHARCOAL)
+      sectionBanner(`SECTION ${sectionNums.s3} — VIEW 1: BY LOCATION`, 'Walk room by room — check off as completed', CHARCOAL)
  
       const locationGroups = {}
       issues.forEach(issue => {
@@ -487,7 +486,7 @@ export default function Report() {
       // ── SECTION 4: BY ISSUE TYPE ──
       if (section4) {
       addPage()
-      sectionBanner('SECTION 4 — VIEW 2: BY ISSUE TYPE', 'Same repairs grouped — assign one crew per issue', CHARCOAL)
+      sectionBanner(`SECTION ${sectionNums.s4} — VIEW 2: BY ISSUE TYPE`, 'Same repairs grouped — assign one crew per issue', CHARCOAL)
  
       const byIssueType = {}
       issues.forEach(issue => {
