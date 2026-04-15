@@ -3,12 +3,12 @@ import { useRouter } from 'next/router'
 import { supabase } from '../../../lib/supabase'
 import { SPACE_TYPES, INTERIOR_ISSUES, EXTERIOR_ISSUES, CRITICAL_ISSUES } from '../../../lib/data'
 import Head from 'next/head'
- 
+
 export default function AddIssue() {
   const router = useRouter()
   const { id, category, wing, floor } = router.query
   const fileRef = useRef()
- 
+
   const [inspection, setInspection] = useState(null)
   const [spaceType, setSpaceType] = useState('')
   const [location, setLocation] = useState('')
@@ -25,19 +25,19 @@ export default function AddIssue() {
   const [customSpaceInput, setCustomSpaceInput] = useState('')
   const [showCustomSpaceInput, setShowCustomSpaceInput] = useState(false)
   const [confirmedCustomSpace, setConfirmedCustomSpace] = useState('')
- 
+
   useEffect(() => {
     if (id) {
       loadInspection()
       loadCustomItems()
     }
   }, [id])
- 
+
   async function loadInspection() {
     const { data } = await supabase.from('inspections').select('*').eq('id', id).single()
     setInspection(data)
   }
- 
+
   async function loadCustomItems() {
     const { data } = await supabase.from('custom_items').select('*')
     if (data) {
@@ -46,34 +46,34 @@ export default function AddIssue() {
       setCustomIssues(data.filter(i => i.item_type === issueType).map(i => i.value))
     }
   }
- 
+
   function getIssueTypeKey() {
     if (category === 'Interior') return 'interior_issue'
     if (category === 'Exterior') return 'exterior_issue'
     if (category === 'Possible Critical Issues') return 'critical_issue'
     return 'paperwork_item'
   }
- 
+
   function getIssueList() {
     if (category === 'Interior') return [...INTERIOR_ISSUES, ...customIssues]
     if (category === 'Exterior') return [...EXTERIOR_ISSUES, ...customIssues]
     if (category === 'Possible Critical Issues') return [...CRITICAL_ISSUES, ...customIssues]
     return [...customIssues]
   }
- 
+
   function handlePhotoChange(e) {
     const file = e.target.files[0]
     if (!file) return
     setPhoto(file)
     setPhotoPreview(URL.createObjectURL(file))
   }
- 
+
   function handleIssueChange(val) {
     setIssueType(val)
     if (val === '__custom__') setCustomIssue('')
     else setCustomIssue('')
   }
- 
+
   async function saveCustomIssue(permanently) {
     const finalIssue = issueType === '__custom__' ? customIssue.trim() : issueType
     if (permanently && finalIssue) {
@@ -82,7 +82,7 @@ export default function AddIssue() {
     setShowSaveCustom(false)
     await saveIssue(finalIssue)
   }
- 
+
   async function saveCustomSpace(permanently) {
     const val = customSpaceInput.trim()
     if (permanently && val) {
@@ -94,11 +94,11 @@ export default function AddIssue() {
     setShowSaveCustomSpace(false)
     setShowCustomSpaceInput(false)
   }
- 
+
   async function handleSave() {
     const finalIssue = issueType === '__custom__' ? customIssue.trim() : issueType
     if (!finalIssue) { alert('Please select or enter an issue type.'); return }
- 
+
     if (issueType === '__custom__' && customIssue.trim()) {
       setShowSaveCustom(true)
       return
@@ -109,11 +109,11 @@ export default function AddIssue() {
     }
     await saveIssue(finalIssue)
   }
- 
+
   async function saveIssue(finalIssue) {
     setSaving(true)
     let photoUrl = null
- 
+
     if (photo) {
       const ext = photo.name.split('.').pop()
       const fileName = `${uuidv4()}.${ext}`
@@ -125,9 +125,9 @@ export default function AddIssue() {
         photoUrl = urlData.publicUrl
       }
     }
- 
+
     const finalSpaceType = confirmedCustomSpace || (spaceType === '__custom__' ? customSpaceInput.trim() : spaceType)
- 
+
     const { error } = await supabase.from('issues').insert({
       inspection_id: id,
       category: category,
@@ -139,7 +139,7 @@ export default function AddIssue() {
       notes: notes.trim(),
       photo_url: photoUrl,
     })
- 
+
     if (!error) {
       const { data: existing } = await supabase.from('inspections').select('issue_count').eq('id', id).single()
       await supabase.from('inspections').update({ issue_count: (existing?.issue_count || 0) + 1 }).eq('id', id)
@@ -149,9 +149,9 @@ export default function AddIssue() {
       setSaving(false)
     }
   }
- 
+
   const allSpaceTypes = [...SPACE_TYPES, ...customSpaces]
- 
+
   return (
     <>
       <Head><title>Add Issue — RCS</title></Head>
@@ -160,7 +160,7 @@ export default function AddIssue() {
           <button className="back-btn" onClick={() => router.back()}>←</button>
           <span className="back-title">Add {category} Issue</span>
         </div>
- 
+
         {/* LOCKED LOCATION for interior */}
         {category === 'Interior' && (
           <div className="lock-bar">
@@ -169,7 +169,7 @@ export default function AddIssue() {
             <div className="lock-pill"><div className="lock-dot" />{floor}</div>
           </div>
         )}
- 
+
         <div className="form-body">
           {/* SPACE TYPE — interior only */}
           {category === 'Interior' && (
@@ -191,6 +191,21 @@ export default function AddIssue() {
                     </button>
                   </div>
                 </div>
+              ) : confirmedCustomSpace ? (
+                <div style={{display:'flex', alignItems:'center', gap:'8px'}}>
+                  <div style={{
+                    flex:1, background:'var(--white)', border:'1px solid var(--border)',
+                    borderRadius:'10px', padding:'11px 13px', fontSize:'13px',
+                    color:'var(--dark)', fontWeight:'500'
+                  }}>
+                    {confirmedCustomSpace}
+                  </div>
+                  <button onClick={() => { setConfirmedCustomSpace(''); setSpaceType(''); setCustomSpaceInput('') }}
+                    style={{background:'none', border:'1px solid var(--border)', borderRadius:'8px',
+                    padding:'8px 12px', fontSize:'12px', color:'var(--muted)', cursor:'pointer', whiteSpace:'nowrap'}}>
+                    Change
+                  </button>
+                </div>
               ) : (
                 <select className="form-select" value={spaceType} onChange={e => {
                   if (e.target.value === '__custom__') setShowCustomSpaceInput(true)
@@ -203,14 +218,14 @@ export default function AddIssue() {
               )}
             </div>
           )}
- 
+
           {/* ROOM / LOCATION */}
           <div className="form-group">
             <label className="form-label">Room / Location</label>
             <input className="form-input" value={location} onChange={e => setLocation(e.target.value)}
               placeholder={category === 'Interior' ? 'e.g. Room 214B, Near Nurses Station' : 'e.g. Front Entrance, North Side'} />
           </div>
- 
+
           {/* ISSUE TYPE */}
           <div className="form-group">
             <label className="form-label">Issue</label>
@@ -229,14 +244,14 @@ export default function AddIssue() {
               </select>
             )}
           </div>
- 
+
           {/* NOTES */}
           <div className="form-group">
             <label className="form-label">Notes (optional)</label>
             <textarea className="form-textarea" value={notes} onChange={e => setNotes(e.target.value)}
               placeholder="Add any relevant details..." />
           </div>
- 
+
           {/* PHOTO */}
           <div className="form-group">
             <label className="form-label">Photo (optional)</label>
@@ -253,12 +268,12 @@ export default function AddIssue() {
               </div>
             )}
           </div>
- 
+
           <button className="save-btn" onClick={handleSave} disabled={saving}>
             {saving ? 'Saving...' : 'Save Issue'}
           </button>
         </div>
- 
+
         {/* CUSTOM ISSUE SAVE MODAL */}
         {showSaveCustom && (
           <div className="modal-overlay">
@@ -272,7 +287,7 @@ export default function AddIssue() {
             </div>
           </div>
         )}
- 
+
         {/* CUSTOM SPACE SAVE MODAL */}
         {showSaveCustomSpace && (
           <div className="modal-overlay">
