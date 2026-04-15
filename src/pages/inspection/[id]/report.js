@@ -415,7 +415,7 @@ export default function Report() {
           doc.setTextColor(120, 80, 0)
           doc.setFontSize(8)
           doc.setFont('helvetica', 'bolditalic')
-          doc.text('All of the above items will be reviewed and addressed following issuance of the inspection report.',
+          doc.text('All of the below items will be reviewed and addressed following issuance of the inspection report.',
             margin + contentW / 2, y + 7.5, { align: 'center' })
           y += 16
         }
@@ -442,24 +442,28 @@ export default function Report() {
             y += 8
           }
  
-          const rows = groupIssues.map((issue, i) => [
-            '',
-            String(i + 1),
-            issue.space_type || '—',
-            issue.location || '—',
-            issue.issue_type,
-            issue.notes || '—'
-          ])
+          const isSimpleCat = cat === 'Possible Critical Issues' || cat === 'Missing Paperwork'
+          const rows = isSimpleCat
+            ? groupIssues.map((issue, i) => ['', String(i + 1), toTitleCase(issue.issue_type), issue.notes || '—'])
+            : groupIssues.map((issue, i) => ['', String(i + 1), issue.space_type || '—', issue.location || '—', toTitleCase(issue.issue_type), issue.notes || '—'])
+ 
+          const head = isSimpleCat
+            ? [['', '#', 'Issue', 'Notes']]
+            : [['', '#', 'Space Type', 'Location', 'Issue', 'Notes']]
+ 
+          const colStyles = isSimpleCat
+            ? { 0: { cellWidth: 6 }, 1: { cellWidth: 6 }, 2: { cellWidth: 100 }, 3: { cellWidth: 74 } }
+            : { 0: { cellWidth: 6 }, 1: { cellWidth: 6 }, 2: { cellWidth: 32 }, 3: { cellWidth: 28 }, 4: { cellWidth: 42 }, 5: { cellWidth: 72 } }
  
           doc.autoTable({
             startY: y,
-            head: [['', '#', 'Space Type', 'Location', 'Issue', 'Notes']],
+            head: head,
             body: rows,
             margin: { left: margin, right: margin },
             headStyles: { fillColor: [74, 111, 165], textColor: WHITE, fontSize: 7.5, fontStyle: 'bold' },
             bodyStyles: { fontSize: 7, textColor: TEXT },
             alternateRowStyles: { fillColor: LIGHT_GRAY },
-            columnStyles: { 0: { cellWidth: 6 }, 1: { cellWidth: 6 }, 2: { cellWidth: 32 }, 3: { cellWidth: 28 }, 4: { cellWidth: 42 }, 5: { cellWidth: 72 } },
+            columnStyles: colStyles,
             didDrawCell: (data) => {
               if (data.section === 'body' && data.column.index === 0) {
                 const x = data.cell.x + 1.5
@@ -507,7 +511,7 @@ export default function Report() {
             doc.setTextColor(120, 80, 0)
             doc.setFontSize(8)
             doc.setFont('helvetica', 'bolditalic')
-            doc.text('All of the above items will be reviewed and addressed following issuance of the inspection report.',
+            doc.text('All of the below items will be reviewed and addressed following issuance of the inspection report.',
               margin + contentW / 2, y + 7.5, { align: 'center' })
             y += 16
           }
