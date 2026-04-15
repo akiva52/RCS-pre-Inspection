@@ -30,6 +30,11 @@ export default function AddIssue() {
     if (id) {
       loadInspection()
       loadCustomItems()
+      // Load last used space type from session
+      if (category === 'Interior') {
+        const lastSpace = sessionStorage.getItem('rcs_last_space_type')
+        if (lastSpace) setSpaceType(lastSpace)
+      }
     }
   }, [id])
 
@@ -127,6 +132,11 @@ export default function AddIssue() {
     }
 
     const finalSpaceType = confirmedCustomSpace || (spaceType === '__custom__' ? customSpaceInput.trim() : spaceType)
+
+    // Remember last used space type for next issue
+    if (category === 'Interior' && finalSpaceType) {
+      sessionStorage.setItem('rcs_last_space_type', finalSpaceType)
+    }
 
     const { error } = await supabase.from('issues').insert({
       inspection_id: id,
