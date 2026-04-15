@@ -2,10 +2,10 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import { supabase } from '../../lib/supabase'
 import Head from 'next/head'
- 
+
 const CATEGORIES = ['Interior', 'Exterior', 'Missing Paperwork', 'Possible Critical Issues']
 const CAT_SHORT = ['Interior', 'Exterior', 'Paperwork', 'Critical']
- 
+
 export default function Inspection() {
   const router = useRouter()
   const { id } = router.query
@@ -17,11 +17,11 @@ export default function Inspection() {
   const [loading, setLoading] = useState(true)
   const [menuIssue, setMenuIssue] = useState(null)
   const [showLocationModal, setShowLocationModal] = useState(false)
- 
+
   useEffect(() => {
     if (id) loadData()
   }, [id])
- 
+
   async function loadData() {
     setLoading(true)
     const { data: insp } = await supabase.from('inspections').select('*').eq('id', id).single()
@@ -36,28 +36,49 @@ export default function Inspection() {
     setIssues(iss || [])
     setLoading(false)
   }
- 
+
   async function deleteIssue(issueId) {
     await supabase.from('issues').delete().eq('id', issueId)
     setIssues(issues.filter(i => i.id !== issueId))
     await updateIssueCount(issues.length - 1)
     setMenuIssue(null)
   }
- 
+
   async function updateIssueCount(count) {
     await supabase.from('inspections').update({ issue_count: count }).eq('id', id)
   }
- 
+
   const filteredIssues = issues.filter(i => i.category === activeCategory)
- 
+
   const currentWingObj = inspection?.wings?.find(w => w.name === activeWing)
   const floorOptions = currentWingObj
     ? Array.from({ length: currentWingObj.floors }, (_, i) => `Floor ${i + 1}`)
     : ['Floor 1']
- 
+
+  async function addWing() {
+    if (!newWingName.trim()) return
+    const newWing = { name: newWingName.trim(), floors: parseInt(newWingFloors) || 1 }
+    const updatedWings = [...(inspection.wings || []), newWing]
+    await supabase.from('inspections').update({ wings: updatedWings }).eq('id', id)
+    setInspection({ ...inspection, wings: updatedWings })
+    setNewWingName('')
+    setNewWingFloors('1')
+  }
+
+  async function removeWing(wingName) {
+    if (!confirm(`Remove "${wingName}"? This won't delete its issues.`)) return
+    const updatedWings = inspection.wings.filter(w => w.name !== wingName)
+    await supabase.from('inspections').update({ wings: updatedWings }).eq('id', id)
+    setInspection({ ...inspection, wings: updatedWings })
+    if (activeWing === wingName && updatedWings.length > 0) {
+      setActiveWing(updatedWings[0].name)
+      setActiveFloor('Floor 1')
+    }
+  }
+
   if (loading) return <div className="app-container"><div className="loading">Loading inspection...</div></div>
   if (!inspection) return <div className="app-container"><div className="loading">Inspection not found.</div></div>
- 
+
   return (
     <>
       <Head><title>{inspection.facility_name} — RCS</title></Head>
@@ -69,7 +90,7 @@ export default function Inspection() {
           </div>
           <div className="header-sub">{inspection.facility_name} — {inspection.inspection_date}</div>
         </div>
- 
+
         {/* FACILITY / LOCATION STRIP */}
         <div className="facility-strip">
           <span className="facility-name">
@@ -79,12 +100,13 @@ export default function Inspection() {
           </span>
           <div style={{display:'flex', gap:'8px', alignItems:'center'}}>
             {activeCategory === 'Interior' && (
-              <button className="facility-change" onClick={() => setShowLocationModal(true)}>change location</button>
+              <button className="facility-change" onClick={() => setShowLocationModal(true)}>change</button>
             )}
+            <button className="facility-change" onClick={() => setShowEditWings(true)}>+ wing</button>
             <button className="facility-change" onClick={() => router.push('/')}>← home</button>
           </div>
         </div>
- 
+
         {/* LOCK BAR — only for interior */}
         {activeCategory === 'Interior' && inspection.wings?.length > 0 && (
           <div className="lock-bar">
@@ -101,7 +123,7 @@ export default function Inspection() {
             )}
           </div>
         )}
- 
+
         {/* CATEGORY TABS */}
         <div className="cat-tabs">
           {CATEGORIES.map((cat, i) => (
@@ -111,7 +133,7 @@ export default function Inspection() {
             </button>
           ))}
         </div>
- 
+
         {/* ISSUES LIST */}
         <div className="issues-body">
           {filteredIssues.length === 0 ? (
@@ -140,7 +162,7 @@ export default function Inspection() {
             ))
           )}
         </div>
- 
+
         {/* ADD BUTTON */}
         <div className="add-btn-wrap">
           <div style={{display:'flex', gap:'8px'}}>
@@ -155,7 +177,7 @@ export default function Inspection() {
             </button>
           </div>
         </div>
- 
+
         {/* LOCATION MODAL */}
         {showLocationModal && (
           <div className="modal-overlay" onClick={() => setShowLocationModal(false)}>
@@ -177,7 +199,38 @@ export default function Inspection() {
             </div>
           </div>
         )}
- 
+
+        {/* EDIT WINGS MODAL */}
+        {showEditWings && (
+          <div className="modal-overlay" onClick={() => setShowEditWings(false)}>
+            <div className="modal-sheet" onClick={e => e.stopPropagation()}>
+              <div className="modal-title">Edit Wings & Floors</div>
+              {inspection.wings?.map(w => (
+                <div key={w.name} style={{display:'flex', justifyContent:'space-between', alignItems:'center', background:'var(--light-gray)', borderRadius:'10px', padding:'10px 14px', marginBottom:'8px'}}>
+                  <div>
+                    <div style={{fontSize:'13px', fontWeight:'600', color:'var(--dark)'}}>{w.name}</div>
+                    <div style={{fontSize:'11px', color:'var(--muted)'}}>{w.floors} floor{w.floors > 1 ? 's' : ''}</div>
+                  </div>
+                  <button onClick={() => removeWing(w.name)} style={{background:'none', border:'none', color:'#c0392b', fontSize:'16px', cursor:'pointer'}}>✕</button>
+                </div>
+              ))}
+              <div style={{borderTop:'1px solid var(--border)', paddingTop:'12px', marginTop:'4px'}}>
+                <div style={{fontSize:'11px', color:'var(--muted)', marginBottom:'8px', fontWeight:'500', textTransform:'uppercase', letterSpacing:'0.06em'}}>Add New Wing</div>
+                <div className="form-group">
+                  <input className="form-input" value={newWingName} onChange={e => setNewWingName(e.target.value)} placeholder="Wing name e.g. East Wing" />
+                </div>
+                <div className="form-group">
+                  <select className="form-select" value={newWingFloors} onChange={e => setNewWingFloors(e.target.value)}>
+                    {[1,2,3,4,5,6,7,8,9,10].map(n => <option key={n} value={n}>{n} floor{n>1?'s':''}</option>)}
+                  </select>
+                </div>
+                <button className="save-btn" onClick={addWing}>Add Wing</button>
+              </div>
+              <button className="modal-btn cancel" style={{marginTop:'8px'}} onClick={() => setShowEditWings(false)}>Done</button>
+            </div>
+          </div>
+        )}
+
         {/* ISSUE MENU MODAL */}
         {menuIssue && (
           <div className="modal-overlay" onClick={() => setMenuIssue(null)}>
