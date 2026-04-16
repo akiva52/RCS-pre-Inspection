@@ -309,8 +309,6 @@ export default function EditIssue() {
             Cancel
           </button>
         </div>
-      </div>
-
         {/* CUSTOM ISSUE SAVE MODAL */}
         {showSaveCustomIssue && (
           <div className="modal-overlay">
